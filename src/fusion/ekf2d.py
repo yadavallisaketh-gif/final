@@ -1,6 +1,6 @@
 """Feature 2B - 2-D error-state style EKF for vehicle dead reckoning.
 
-State  s = [x, y, v_f, v_l, yaw, b_a, b_g, b_l, r_x]
+State  s = [x, y, v_f, v_l, yaw, b_a, b_g, b_l, r_x, b_v]
   x, y  position in local ENU (m)
   v_f   forward speed (m/s), v_l lateral speed (m/s, +left)
   yaw   heading, ENU counter-clockwise from East (rad)
@@ -8,6 +8,11 @@ State  s = [x, y, v_f, v_l, yaw, b_a, b_g, b_l, r_x]
   b_l   lateral accelerometer bias (m/s^2) - mostly mount-misalignment leakage
   r_x   phone lever arm: distance of the phone ahead of the rear axle (m);
         a constant parameter unless filter.estimate_lever_arm is set
+  b_v   MotionNet speed bias (m/s): first-order Gauss-Markov process
+        b_v(k+1) = exp(-dt/tau_v) b_v(k) + w,  Var(w) = sigma_b^2 (1 - exp(-2 dt/tau_v)),
+        so its stationary std is sigma_b. MotionNet measures z = v_f + b_v; while
+        GNSS speed is available b_v is observable (z - v_gnss) and is calibrated
+        online, then carried into the blackout by its own dynamics.
 
 This is the playbook's [x, y, v, yaw, b_a, b_g] plus an explicit lateral
 velocity, so that the non-holonomic constraint is a real measurement instead of
@@ -47,8 +52,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
-X, Y, VF, VL, YAW, BA, BG, BL, RX = range(9)
-N = 9
+X, Y, VF, VL, YAW, BA, BG, BL, RX, BV = range(10)
+N = 10
 CHI2_999 = {1: 10.83, 2: 13.82}
 
 
@@ -75,8 +80,9 @@ class EKF2D:
         fc = cfg["filter"]
         self.fc = fc
         self.estimate_bias = estimate_bias
+        self.bias_state = bool(fc.get("motion_bias_state", False))   # b_v modelled as a filter state
         self.s = np.zeros(N)
-        self.P = np.diag([1e4, 1e4, 100.0, 1.0, 10.0, 0.1, 0.01, 0.1, 0.0])
+        self.P = np.diag([1e4, 1e4, 100.0, 1.0, 10.0, 0.1, 0.01, 0.1, 0.0, 0.0])
         self.s[RX] = fc.get("lever_arm_x", 0.0)
         if not estimate_bias:
             self.P[BA, BA] = self.P[BG, BG] = self.P[BL, BL] = 0.0
@@ -90,10 +96,11 @@ class EKF2D:
     def initialise(self, t: float, x: float, y: float, speed: float, yaw: float, pos_std: float = 3.0):
         self.t = t
         fc = self.fc
-        self.s[:] = [x, y, speed, 0.0, yaw, 0.0, 0.0, 0.0, fc.get("lever_arm_x", 0.0)]
+        self.s[:] = [x, y, speed, 0.0, yaw, 0.0, 0.0, 0.0, fc.get("lever_arm_x", 0.0), 0.0]
         rx_var = fc.get("lever_arm_sigma", 0.5) ** 2 if fc.get("estimate_lever_arm", False) else 0.0
+        bv_var = fc.get("motion_bias_sigma", 0.0) ** 2 if self.bias_state else 0.0
         self.P = np.diag([pos_std ** 2, pos_std ** 2, 1.0, 0.25, np.deg2rad(10) ** 2, 0.05 ** 2,
-                          fc["bg_prior_sigma"] ** 2, fc["bl_prior_sigma"] ** 2, rx_var])
+                          fc["bg_prior_sigma"] ** 2, fc["bl_prior_sigma"] ** 2, rx_var, bv_var])
         if not self.estimate_bias:
             self.P[BA, BA] = self.P[BG, BG] = self.P[BL, BL] = 0.0
 
@@ -104,7 +111,7 @@ class EKF2D:
         self.w_last, self.al_last = w, a_l
         if dt <= 0:
             return
-        x, y, vf, vl, yaw, ba, bg, bl, rx = self.s
+        x, y, vf, vl, yaw, ba, bg, bl, rx, bv = self.s
         om = w - bg
         af = a_f - ba
         c, s = np.cos(yaw), np.sin(yaw)
@@ -113,6 +120,9 @@ class EKF2D:
         self.s[VF] += (af + om * vl) * dt
         self.s[VL] += (a_l - bl - om * vf) * dt
         self.s[YAW] = wrap(yaw + om * dt)
+        tau_v = self.fc.get("motion_bias_tau_s", 0.0) if self.bias_state else 0.0
+        phi_v = float(np.exp(-dt / tau_v)) if tau_v > 0 else 1.0   # Gauss-Markov decay (tau 0: constant)
+        self.s[BV] = bv * phi_v
 
         F = np.eye(N)
         F[X, VF], F[X, VL], F[X, YAW] = c * dt, -s * dt, (-vf * s - vl * c) * dt
@@ -120,12 +130,14 @@ class EKF2D:
         F[VF, VL], F[VF, BA], F[VF, BG] = om * dt, -dt, -vl * dt
         F[VL, VF], F[VL, BG], F[VL, BL] = -om * dt, vf * dt, -dt
         F[YAW, BG] = -dt
+        F[BV, BV] = phi_v
         # Continuous-time white-noise model: variance grows linearly with time,
         # independent of how finely the interval is sampled.
         fc = self.fc
         q = np.array([0.0, 0.0, fc["sigma_acc"] ** 2 * dt, fc["sigma_acc"] ** 2 * dt,
                       fc["sigma_gyro"] ** 2 * dt, fc["sigma_ba_rw"] ** 2 * dt, fc["sigma_bg_rw"] ** 2 * dt,
-                      fc["sigma_bl_rw"] ** 2 * dt, 0.0])   # r_x is a constant (no process noise)
+                      fc["sigma_bl_rw"] ** 2 * dt, 0.0,    # r_x is a constant (no process noise)
+                      fc.get("motion_bias_sigma", 0.0) ** 2 * (1.0 - phi_v ** 2) if self.bias_state else 0.0])
         if not self.estimate_bias:
             F[VF, BA] = F[VF, BG] = F[VL, BG] = F[YAW, BG] = F[VL, BL] = 0.0
             q[BA] = q[BG] = q[BL] = 0.0
@@ -144,6 +156,10 @@ class EKF2D:
             self.log.append(UpdateRecord(self.t, source, False, nis))
             return False
         K = self.P @ H.T @ Sinv
+        if not self.gnss_enabled and self.fc.get("freeze_accel_bias_in_dr", False):
+            # GNSS-denied: the forward accelerometer bias is unobservable; clamp it
+            # for every measurement type (MotionNet, NHC, ZUPT, map ...)
+            frozen = tuple(frozen) + (BA,)
         if frozen:  # states this measurement must not re-estimate ("consider" states)
             K[list(frozen), :] = 0.0
         self.s += K @ innov
@@ -198,10 +214,15 @@ class EKF2D:
         return tuple(sorted(set(always) | set(extra)))
 
     def update_speed(self, speed: float, std: float, source: str = "motionnet") -> bool:
+        """MotionNet speed: z = v_f + b_v (b_v only when the bias state is enabled)."""
         H = np.zeros((1, N))
         H[0, VF] = 1.0
-        return self._update(source, np.array([speed - self.s[VF]]), H, np.array([[std ** 2]]), 30.0,
-                            self._dr_frozen())
+        pred = self.s[VF]
+        if self.bias_state:
+            H[0, BV] = 1.0
+            pred += self.s[BV]
+        frozen = self._dr_frozen() if not self.gnss_enabled else ()
+        return self._update(source, np.array([speed - pred]), H, np.array([[std ** 2]]), 30.0, frozen)
 
     def update_nhc(self, std: float, w: float | None = None, a_l: float | None = None) -> bool:
         """Soft non-holonomic constraint at the rear axle: h = v_l - (w - b_g) * r_x = 0.

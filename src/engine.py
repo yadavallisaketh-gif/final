@@ -131,11 +131,15 @@ class NavigationEngine:
             mode = MODE_GNSS
             before = self.ekf.s[[X, Y]].copy()
             self._gnss_update(s.t, fix)
+            if self.ekf.bias_state:
+                self._motion_update()          # calibrates b_v against GNSS speed
             self._last_fix_t = s.t
             # The filter may jump when GNSS returns; the displayed position eases onto it.
             self._disp_offset -= self.ekf.s[[X, Y]] - before
         elif s.t - self._last_fix_t <= self.fc["gnss_timeout_s"]:
             mode = MODE_GNSS          # between fixes of a slower GNSS receiver
+            if self.ekf.bias_state:
+                self._motion_update()
         else:
             mode = MODE_DR
             self._dead_reckoning_updates(s.t)
@@ -211,19 +215,27 @@ class NavigationEngine:
             update()
             self._rejects[name] = 0
 
+    def _motion_update(self):
+        """MotionNet speed pseudo-measurement (10 Hz by default)."""
+        fc = self.fc
+        if self.model is None or len(self.buffer) < self.model.window or self.n % self.motion_every_n:
+            return
+        mu, sd = self.model.predict(np.asarray(self.buffer))
+        self._last_motion = mu
+        if fc.get("motion_sigma_fixed"):
+            std = fc["motion_sigma_fixed"]
+        elif self.ekf.bias_state:
+            # The correlated part of the MotionNet error lives in b_v; only the
+            # (small) white remainder is measurement noise.
+            std = max(sd * fc["motion_sigma_scale"] * fc["motion_white_frac"], fc["motion_sigma_floor"])
+        else:
+            std = max(sd * fc["motion_sigma_scale"], fc["motion_sigma_floor"]) * np.sqrt(self.motion_r_inflation)
+        self.ekf.update_speed(mu, std)
+
     def _dead_reckoning_updates(self, t: float):
         ekf = self.ekf
         ekf.gnss_enabled = False            # any GNSS update from here on raises
-        fc = self.fc
-        if self.model is not None and len(self.buffer) == self.model.window and self.n % self.motion_every_n == 0:
-            mu, sd = self.model.predict(np.asarray(self.buffer))
-            mu = max(mu - fc.get("motion_bias", 0.0), 0.0)
-            self._last_motion = mu
-            if fc.get("motion_sigma_fixed"):
-                std = fc["motion_sigma_fixed"]
-            else:
-                std = max(sd * fc["motion_sigma_scale"], fc["motion_sigma_floor"]) * np.sqrt(self.motion_r_inflation)
-            ekf.update_speed(mu, std)
+        self._motion_update()
         if self.variant.use_nhc and self.fc["zupt"] and self._is_stopped(t):
             ekf.update_zupt(self.fc["zupt_sigma"] * self.pseudo_scale)
             if self.fc["zaru"] and self.variant.estimate_bias and self.n % self.decim == 0:

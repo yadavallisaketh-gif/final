@@ -80,6 +80,7 @@ def test_nhc_observes_gyro_bias_during_blackout(cfg):
         cfg["filter"]["freeze_bias_in_dr"] = freeze
         ekf = EKF2D(cfg)
         ekf.initialise(0.0, 0.0, 0.0, 5.0, 0.0)
+        ekf.gnss_enabled = False                  # the whole run is a blackout
         v = 5.0
         for k in range(1, 1201):                  # 120 s, speed varies 5..20 m/s
             t = k * 0.1
@@ -133,73 +134,81 @@ def test_nhc_information_is_rate_invariant(cfg):
 
 
 def test_filter_dimensions_through_a_full_cycle(cfg):
+    """Every predict/update type with the b_v and lever-arm states enabled: no shape errors."""
+    cfg["filter"].update(motion_bias_state=True, estimate_lever_arm=True)
     ekf = EKF2D(cfg)
     ekf.initialise(0.0, 1.0, 2.0, 10.0, 0.3)
+    assert ekf.P[9, 9] > 0 and ekf.P[8, 8] > 0            # both augmented states are live
     for k in range(1, 51):
         ekf.predict(k * 0.1, 0.2, 0.1, 0.05)
-        assert ekf.s.shape == (9,) and ekf.P.shape == (9, 9)
+        assert ekf.s.shape == (10,) and ekf.P.shape == (10, 10)
     ekf.update_gnss_position(5.0, 3.0, 3.0)
     ekf.update_gnss_speed(10.5)
     ekf.update_gnss_heading(0.35)
     ekf.update_speed(10.0, 1.0)
+    ekf.gnss_enabled = False                               # GNSS-denied branch of every update
+    ekf.update_speed(10.2, 1.0)
     ekf.update_nhc(0.15)
     ekf.update_nhc(0.15, w=0.1, a_l=0.5)
     ekf.update_zupt(0.2)
     ekf.update_zaru(0.001, 0.003)
     ekf.update_road(5.0, 3.0, 0.3, 8.0, np.deg2rad(6))
-    assert ekf.s.shape == (9,) and ekf.P.shape == (9, 9)
+    ekf.predict(5.1, 0.0, 0.0, 0.0)
+    assert ekf.s.shape == (10,) and ekf.P.shape == (10, 10)
     assert np.isfinite(ekf.P).all() and np.allclose(ekf.P, ekf.P.T, atol=1e-9)
     assert np.linalg.eigvalsh(ekf.P).min() > -1e-9
 
 
-def test_engine_blackout_filtered_beats_raw_with_bias(cfg):
-    d = make_drive(500, gyro_bias=0.004, acc_bias=0.08)
-    df = to_frame(d)
-    w = BlackoutWindow("syn", 0, 300.0, 360.0)
-    est, truth = apply_blackout(df, w)
-    al = fit_alignment(est.df[est.df.t < w.t_start], cfg)
-    drift = {}
-    for key in ("A", "B"):
-        eng = NavigationEngine(cfg, al, VARIANTS[key], 10.0)
-        traj = eng.run(ReplaySource(est))
-        drift[key] = blackout_metrics(traj, truth, w)["drift_percent"]
-    assert drift["B"] < drift["A"], drift
+def test_motionnet_bias_is_gauss_markov(cfg):
+    cfg["filter"].update(motion_bias_state=True, motion_bias_tau_s=4.7, motion_bias_sigma=3.0)
+    ekf = EKF2D(cfg)
+    ekf.initialise(0.0, 0.0, 0.0, 10.0, 0.0)
+    ekf.s[9] = 2.0
+    for k in range(1, 48):                                 # 4.7 s = one time constant
+        ekf.predict(k * 0.1, 0.0, 0.0, 0.0)
+    assert abs(ekf.s[9] - 2.0 * np.exp(-1.0)) < 1e-6
+    for k in range(48, 1000):
+        ekf.predict(k * 0.1, 0.0, 0.0, 0.0)
+    assert abs(np.sqrt(ekf.P[9, 9]) - 3.0) < 0.05           # stationary std = sigma_b
 
 
-def test_same_engine_runs_on_a_200hz_external_imu(cfg):
-    """SensorSource abstraction: a 200 Hz IMU with 1 Hz GNSS, no engine changes."""
-    d = make_drive(400)
-    w = BlackoutWindow("syn", 0, 250.0, 280.0)
-    src = SyntheticSource(d, rate_hz=200.0, gnss_hz=1.0, blackout=w)
-    # calibrate on the pre-blackout part of the 10 Hz version of the same drive
-    al = fit_alignment(to_frame(d).query("t < 250"), cfg)
-    eng = NavigationEngine(cfg, al, VARIANTS["C+NHC"].__class__(**{**VARIANTS["B"].__dict__, "use_nhc": True}), 200.0)
-    traj = eng.run(src)
-    assert abs(np.median(np.diff(traj.t)) - 0.005) < 1e-6
-    inside = w.contains(traj.t.to_numpy())
-    settled = inside & (traj.t.to_numpy() > w.t_start + cfg["filter"]["gnss_timeout_s"])
-    assert (traj["mode"][settled] == "DEAD RECKONING").all()
-    assert (traj["mode"][traj.t.to_numpy() < w.t_start] != "DEAD RECKONING").all()   # 1 Hz GNSS is not "lost"
-    assert not any(k.startswith("gnss") for k in eng.ekf.counts(w.t_start, w.t_end, accepted_only=False))
-    end = np.nonzero(inside)[0][-1]
-    err = np.hypot(traj.x[end] - np.interp(traj.t[end], d.t, d.x), traj.y[end] - np.interp(traj.t[end], d.t, d.y))
-    assert err < 30.0, err
+def test_motionnet_bias_calibrated_before_blackout_and_removed_during_it(cfg):
+    out = {}
+    for state in (False, True):
+        cfg["filter"].update(motion_bias_state=state, motion_bias_tau_s=600.0, motion_bias_sigma=3.0)
+        ekf = EKF2D(cfg)
+        ekf.initialise(0.0, 0.0, 0.0, 12.0, 0.0)
+        k = 0
+        for k in range(1, 601):                            # 60 s with GNSS speed: calibrate
+            ekf.predict(k * 0.1, 0.0, 0.0, 0.0)
+            ekf.update_gnss_speed(12.0)
+            ekf.update_speed(14.0, 0.5)                    # MotionNet reads +2 m/s too fast
+        bv_cal = ekf.s[9]
+        ekf.gnss_enabled = False
+        for k in range(601, 1201):                         # 60 s blackout, MotionNet only
+            ekf.predict(k * 0.1, 0.0, 0.0, 0.0)
+            ekf.update_speed(14.0, 0.5)
+        out[state] = (bv_cal, ekf.s[2])
+    assert abs(out[True][0] - 2.0) < 0.2                   # b_v converged on the offset
+    assert abs(out[True][1] - 12.0) < 0.5                  # speed stays right through the blackout
+    assert abs(out[False][1] - 14.0) < 0.5                 # without the state: the bias passes through
 
 
-def test_reacquisition_is_gradual(cfg):
-    d = make_drive(400, gyro_bias=0.01, acc_bias=0.2)
-    df = to_frame(d)
-    w = BlackoutWindow("syn", 0, 200.0, 290.0)
-    est, truth = apply_blackout(df, w)
-    al = fit_alignment(est.df[est.df.t < w.t_start], cfg)
-    al.gyro_bias[:] = 0
-    al.acc_bias[:] = 0
-    eng = NavigationEngine(cfg, al, VARIANTS["A"], 10.0)
-    traj = eng.run(ReplaySource(est))
-    m = blackout_metrics(traj, truth, w)
-    assert m["endpoint_error_m"] > 20                       # there was a real error to correct
-    assert m["reacq_max_step_m"] < 0.5 * m["endpoint_error_m"]  # ... corrected over several fixes
-    assert m["reacq_time_to_5m_s"] < 20
+def test_accel_bias_clamped_in_gnss_denial(cfg):
+    cfg["filter"].update(freeze_accel_bias_in_dr=True, freeze_bias_in_dr=False)
+    ekf = EKF2D(cfg)
+    ekf.initialise(0.0, 0.0, 0.0, 10.0, 0.0)
+    ekf.s[5] = 0.05
+    for k in range(1, 21):
+        ekf.predict(k * 0.1, 0.3, 0.2, 0.02)
+    ekf.gnss_enabled = False
+    for k in range(21, 121):
+        ekf.predict(k * 0.1, 0.3, 0.2, 0.02)
+        ekf.update_speed(9.0, 1.0)
+        ekf.update_nhc(0.15)
+        ekf.update_zupt(0.2)
+        ekf.update_road(k * 1.0, 0.0, 0.0, 8.0, np.deg2rad(6))
+    assert ekf.s[5] == 0.05                                # untouched by every DR update
 
 
 def test_nhc_never_changes_position_or_forward_speed(cfg):
@@ -313,3 +322,53 @@ def test_motionnet_update_rate_and_r_inflation(cfg):
     cfg["filter"].update(motion_update_hz=10.0, motion_err_tau_s=0)
     eng10 = NavigationEngine(cfg, al, VARIANTS["C"], 10.0, m)
     assert eng10.motion_every_n == 1 and eng10.motion_r_inflation == 1.0   # old behaviour reproducible
+
+
+def test_engine_blackout_filtered_beats_raw_with_bias(cfg):
+    d = make_drive(500, gyro_bias=0.004, acc_bias=0.08)
+    df = to_frame(d)
+    w = BlackoutWindow("syn", 0, 300.0, 360.0)
+    est, truth = apply_blackout(df, w)
+    al = fit_alignment(est.df[est.df.t < w.t_start], cfg)
+    drift = {}
+    for key in ("A", "B"):
+        eng = NavigationEngine(cfg, al, VARIANTS[key], 10.0)
+        traj = eng.run(ReplaySource(est))
+        drift[key] = blackout_metrics(traj, truth, w)["drift_percent"]
+    assert drift["B"] < drift["A"], drift
+
+
+def test_reacquisition_is_gradual(cfg):
+    d = make_drive(400, gyro_bias=0.01, acc_bias=0.2)
+    df = to_frame(d)
+    w = BlackoutWindow("syn", 0, 200.0, 290.0)
+    est, truth = apply_blackout(df, w)
+    al = fit_alignment(est.df[est.df.t < w.t_start], cfg)
+    al.gyro_bias[:] = 0
+    al.acc_bias[:] = 0
+    eng = NavigationEngine(cfg, al, VARIANTS["A"], 10.0)
+    traj = eng.run(ReplaySource(est))
+    m = blackout_metrics(traj, truth, w)
+    assert m["endpoint_error_m"] > 20                       # there was a real error to correct
+    assert m["reacq_max_step_m"] < 0.5 * m["endpoint_error_m"]  # ... corrected over several fixes
+    assert m["reacq_time_to_5m_s"] < 20
+
+
+def test_same_engine_runs_on_a_200hz_external_imu(cfg):
+    """SensorSource abstraction: a 200 Hz IMU with 1 Hz GNSS, no engine changes."""
+    d = make_drive(400)
+    w = BlackoutWindow("syn", 0, 250.0, 280.0)
+    src = SyntheticSource(d, rate_hz=200.0, gnss_hz=1.0, blackout=w)
+    # calibrate on the pre-blackout part of the 10 Hz version of the same drive
+    al = fit_alignment(to_frame(d).query("t < 250"), cfg)
+    eng = NavigationEngine(cfg, al, VARIANTS["C+NHC"].__class__(**{**VARIANTS["B"].__dict__, "use_nhc": True}), 200.0)
+    traj = eng.run(src)
+    assert abs(np.median(np.diff(traj.t)) - 0.005) < 1e-6
+    inside = w.contains(traj.t.to_numpy())
+    settled = inside & (traj.t.to_numpy() > w.t_start + cfg["filter"]["gnss_timeout_s"])
+    assert (traj["mode"][settled] == "DEAD RECKONING").all()
+    assert (traj["mode"][traj.t.to_numpy() < w.t_start] != "DEAD RECKONING").all()   # 1 Hz GNSS is not "lost"
+    assert not any(k.startswith("gnss") for k in eng.ekf.counts(w.t_start, w.t_end, accepted_only=False))
+    end = np.nonzero(inside)[0][-1]
+    err = np.hypot(traj.x[end] - np.interp(traj.t[end], d.t, d.x), traj.y[end] - np.interp(traj.t[end], d.t, d.y))
+    assert err < 30.0, err

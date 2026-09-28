@@ -22,21 +22,23 @@ from .evaluate import build_network, run_window
 from .models.motion_net import MotionModel
 
 NO_GATING = {"filter.nhc_turn_rate_ref": None, "filter.nhc_lat_acc_ref": None, "filter.nhc_max_yaw_rate": None}
-STEP1 = {"filter.lever_arm_x": 0.0, **NO_GATING, "filter.motion_update_hz": 10.0, "filter.motion_err_tau_s": 0}
+STEP2 = {"filter.motion_bias_state": False, "filter.freeze_accel_bias_in_dr": False}
+STEP1 = {**STEP2, "filter.lever_arm_x": 0.0, **NO_GATING, "filter.motion_update_hz": 10.0, "filter.motion_err_tau_s": 0}
 SETTINGS = {
     # reproduces the pre-Step-1 filter as closely as the code allows (bisect reference)
     "pre-Step-1": {**STEP1, "preprocess.attitude": "static", "filter.zaru": False, "filter.bl_prior_sigma": 0.0,
                    "filter.sigma_bl_rw": 0.0, "filter.nhc_freeze_yaw": True,
                    "model.path": "results/models/motionnet.pt"},
     "Step 1 (as committed)": STEP1,
-    "Step 1 + NHC may not rotate heading": {**STEP1, "filter.nhc_freeze_yaw": True},
-    "Step 2 as specified (1 Hz, R inflated)": {"filter.motion_update_hz": 1.0, "filter.motion_err_tau_s": 6.7},
-    "Step 2 (default: lever arm + gating, 10 Hz MotionNet)": {},
-    "Step 2, no lever arm": {"filter.lever_arm_x": 0.0},
-    "Step 2, no NHC gating": NO_GATING,
-    "Step 2, 1 Hz without R inflation": {"filter.motion_update_hz": 1.0, "filter.motion_err_tau_s": 0},
-    "Step 2, 1 Hz fixed sigma_v 2.0": {"filter.motion_update_hz": 1.0, "filter.motion_sigma_fixed": 2.0},
-    "Step 2 + NHC may not rotate heading": {"filter.nhc_freeze_yaw": True},
+    "Step 2 (lever arm + gating, 10 Hz MotionNet)": STEP2,
+    "Step 2 as specified (1 Hz, R inflated)": {**STEP2, "filter.motion_update_hz": 1.0, "filter.motion_err_tau_s": 6.7},
+    "Step 3 as specified (b_v, tau 4.7 s, b_a clamp)": {"filter.motion_bias_tau_s": 4.7},
+    "Step 3, tau 30 s": {"filter.motion_bias_tau_s": 30.0},
+    "Step 3, tau 120 s": {"filter.motion_bias_tau_s": 120.0},
+    "Step 3, tau 600 s": {"filter.motion_bias_tau_s": 600.0},
+    "Step 3, tau 120 s, no b_a clamp": {"filter.motion_bias_tau_s": 120.0, "filter.freeze_accel_bias_in_dr": False},
+    "Step 3, tau 120 s, white frac 0.5": {"filter.motion_bias_tau_s": 120.0, "filter.motion_white_frac": 0.5},
+    "Step 3, tau 120 s, sigma_b 5": {"filter.motion_bias_tau_s": 120.0, "filter.motion_bias_sigma": 5.0},
 }
 
 

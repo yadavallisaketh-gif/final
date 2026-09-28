@@ -110,11 +110,15 @@ filter:
   motion_update_hz: 10.0            # MotionNet speed updates per second
   motion_err_tau_s: 0               # s, MotionNet error correlation time for R inflation (0 = none)
   motion_sigma_fixed: null          # m/s: if set, use this instead of predicted-sigma * inflation
-  # A scalar bias correction was requested (+0.34 m/s, measured on test drive S1).
-  # Validation drives disagree (S3c -3.19, Vta16 +0.07, Vfa01 -0.41 m/s): the
-  # bias is drive-dependent, and taking it from a test drive would leak the test
-  # set. Kept at 0; the option exists for a bias learned on training drives.
-  motion_bias: 0.0
+  # MotionNet bias as a filter state (Step 3): z = v_f + b_v, b_v first-order
+  # Gauss-Markov. Calibrated online against GNSS speed before the blackout (MotionNet
+  # also runs while GNSS is healthy), then carried through it by its dynamics.
+  # (A static scalar bias correction was removed: the bias is drive-dependent,
+  # -3.19 .. +0.34 m/s across drives.)
+  motion_bias_state: true
+  motion_bias_tau_s: 4.7            # s, Gauss-Markov correlation time (0 = random constant)
+  motion_bias_sigma: 3.0            # m/s, stationary std of b_v (~ MotionNet error std)
+  motion_white_frac: 0.25           # white part of the MotionNet error as a fraction of its predicted std
   zupt: true                        # zero-velocity update when the IMU says "stopped" (with the NHC stage)
   zupt_min_still_s: 2.0             # the stop must persist this long ...
   zupt_max_motion_speed: 2.0        # ... and MotionNet must agree (m/s), guarding against false stops
@@ -126,7 +130,7 @@ filter:
   # lateral acceleration carries ~13 deg misalignment leakage that looks like gyro
   # bias). The gyro bias is still NOT frozen: ZARU updates it at every stop.
   freeze_bias_in_dr: true
-  freeze_accel_bias_in_dr: false
+  freeze_accel_bias_in_dr: true     # clamp b_a for every update while GNSS is denied (Step 3)
   display_blend_s: 3.0              # displayed position eases onto GNSS corrections over ~this time
 
 map:
