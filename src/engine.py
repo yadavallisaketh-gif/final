@@ -126,6 +126,8 @@ class NavigationEngine:
             return mode
 
         dt = s.t - self.ekf.t
+        # blackout state must be known *before* propagation (GNSS-denied speed model)
+        self.ekf.denied = fix is None and s.t - self._last_fix_t > self.fc["gnss_timeout_s"]
         self.ekf.predict(s.t, a_f, a_l, w_u)
         if fix is not None:
             mode = MODE_GNSS

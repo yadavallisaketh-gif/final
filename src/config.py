@@ -10,8 +10,13 @@ DEFAULT_CONFIG = os.path.join(os.path.dirname(__file__), "..", "configs", "base.
 
 
 def load_config(path: str | None = None, overrides: list[str] | None = None) -> dict:
-    with open(path or DEFAULT_CONFIG) as f:
+    path = path or DEFAULT_CONFIG
+    with open(path) as f:
         cfg = yaml.safe_load(f)
+    parent = cfg.pop("inherit", None)
+    if parent:  # profile file: deep-merge its keys over the parent config
+        base = load_config(os.path.join(os.path.dirname(path), parent))
+        cfg = _merge(base, cfg)
     for item in overrides or []:
         key, _, raw = item.partition("=")
         node = cfg
@@ -20,6 +25,13 @@ def load_config(path: str | None = None, overrides: list[str] | None = None) -> 
             node = node.setdefault(p, {})
         node[parts[-1]] = yaml.safe_load(raw)
     return cfg
+
+
+def _merge(base: dict, over: dict) -> dict:
+    out = copy.deepcopy(base)
+    for k, v in over.items():
+        out[k] = _merge(out[k], v) if isinstance(v, dict) and isinstance(out.get(k), dict) else v
+    return out
 
 
 def copy_config(cfg: dict, **changes) -> dict:

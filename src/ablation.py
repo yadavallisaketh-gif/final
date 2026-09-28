@@ -48,6 +48,12 @@ SETTINGS = {
     "Step 3 tau 4.7 s, sigma_acc 1.0": {**STEP3, "filter.motion_bias_tau_s": 4.7, "filter.sigma_acc": 1.0},
     "Step 3 tau 600 s, sigma_acc 1.0, white 1.0": {**STEP3, "filter.motion_bias_tau_s": 600.0, "filter.sigma_acc": 1.0,
                                                     "filter.motion_white_frac": 1.0},
+    # SIH MVP profile (run with --config configs/sih_mvp.yaml): accelerometer decoupled in blackouts
+    "MVP decouple, speed rw 0.3": {"filter.dr_accel_mode": "decouple", "filter.dr_speed_rw": 0.3},
+    "MVP decouple, speed rw 1.0": {"filter.dr_accel_mode": "decouple", "filter.dr_speed_rw": 1.0},
+    "MVP decouple, speed rw 3.0": {"filter.dr_accel_mode": "decouple", "filter.dr_speed_rw": 3.0},
+    "MVP inflate x1000": {"filter.dr_accel_mode": "inflate", "filter.dr_accel_inflation": 1000.0},
+    "MVP accel normal (= Step 2)": {"filter.dr_accel_mode": "normal"},
     "Step 3 tau 600 s, sigma_acc 1.0, white 0.5": {**STEP3, "filter.motion_bias_tau_s": 600.0, "filter.sigma_acc": 1.0,
                                                     "filter.motion_white_frac": 0.5},
 }
@@ -55,6 +61,7 @@ SETTINGS = {
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--config", help="base config / profile (default configs/base.yaml)")
     ap.add_argument("--gnss", default="phone", choices=["phone", "vehicle"])
     ap.add_argument("--windows", type=int, default=0, help="blackouts per duration (0 = config default)")
     ap.add_argument("--set", nargs="*", default=[])
@@ -63,7 +70,7 @@ def main(argv=None):
     ap.add_argument("--drives", default="val", choices=["val", "test"],
                     help="choose settings on val; 'test' only to report the chosen ones")
     a = ap.parse_args(argv)
-    base = load_config(None, a.set)
+    base = load_config(a.config, a.set)
     base["data"]["gnss_source"] = a.gnss
     if a.windows:
         base["evaluate"]["windows_per_duration"] = a.windows

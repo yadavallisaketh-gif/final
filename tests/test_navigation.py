@@ -372,3 +372,36 @@ def test_same_engine_runs_on_a_200hz_external_imu(cfg):
     end = np.nonzero(inside)[0][-1]
     err = np.hypot(traj.x[end] - np.interp(traj.t[end], d.t, d.x), traj.y[end] - np.interp(traj.t[end], d.t, d.y))
     assert err < 30.0, err
+
+
+def test_blackout_speed_decoupled_from_forward_accelerometer(cfg):
+    """dr_accel_mode=decouple: a biased forward accelerometer cannot drag v_f in a
+    blackout; MotionNet alone sets the speed. With GNSS it is used as normal."""
+    out = {}
+    for mode in ("normal", "decouple", "inflate"):
+        cfg["filter"]["dr_accel_mode"] = mode
+        ekf = EKF2D(cfg)
+        ekf.initialise(0.0, 0.0, 0.0, 10.0, 0.0)
+        ekf.denied, ekf.gnss_enabled = True, False           # blackout
+        for k in range(1, 601):                              # 60 s, a_f reads a spurious -0.3 m/s^2
+            ekf.predict(k * 0.1, -0.3, 0.0, 0.0)
+            ekf.update_speed(10.0, 2.0)                      # MotionNet: 10 m/s, noisy
+        out[mode] = ekf.s[2]
+    assert abs(out["decouple"] - 10.0) < 0.3
+    assert abs(out["inflate"] - 10.0) < 0.5
+    assert out["normal"] < out["decouple"] - 0.5             # the accelerometer bias leaks without decoupling
+    cfg["filter"]["dr_accel_mode"] = "decouple"
+    ekf = EKF2D(cfg)
+    ekf.initialise(0.0, 0.0, 0.0, 10.0, 0.0)                 # GNSS healthy: accelerometer still integrated
+    for k in range(1, 11):
+        ekf.predict(k * 0.1, 1.0, 0.0, 0.0)
+    assert abs(ekf.s[2] - 11.0) < 1e-6
+
+
+def test_config_profile_inherits_base():
+    from src.config import load_config
+    c = load_config("configs/sih_mvp.yaml")
+    b = load_config()
+    assert c["data"]["gnss_source"] == "vehicle" and c["filter"]["dr_accel_mode"] == "decouple"
+    assert c["filter"]["lever_arm_x"] == b["filter"]["lever_arm_x"]    # everything else from base
+    assert c["split"] == b["split"]

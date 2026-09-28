@@ -1,0 +1,20 @@
+# SIH screening-round "Hackathon MVP" profile (inherits everything else from base.yaml).
+#
+#   python -m src.evaluate --config configs/sih_mvp.yaml
+#
+# Assumptions, stated on every plot and in the README:
+#  * Pre-blackout GNSS is the car's reference receiver (IO-VNBD V-files), time-aligned
+#    to the phone IMU. The IO-VNBD phone GPS lags by seconds; latency compensation is
+#    deferred to the real-world phase. Inside a blackout no GNSS of any kind is used.
+#  * During a blackout forward speed comes from MotionNet only (accelerometer decoupled).
+inherit: base.yaml
+
+data:
+  gnss_source: vehicle
+
+filter:
+  dr_accel_mode: decouple
+  dr_speed_rw: 1.0                  # chosen on validation drives (python -m src.ablation --config ...)
+
+evaluate:
+  output_dir: outputs/sih_mvp

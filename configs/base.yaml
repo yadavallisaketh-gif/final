@@ -135,6 +135,9 @@ filter:
   # GNSS: letting NHC drive b_g raised median drift 32% -> 45% because IO-VNBD's
   # lateral acceleration carries ~13 deg misalignment leakage that looks like gyro
   # bias). The gyro bias is still NOT frozen: ZARU updates it at every stop.
+  dr_accel_mode: normal             # GNSS-denied forward-speed model: normal | decouple | inflate
+  dr_speed_rw: 1.0                  # m/s/sqrt(s) speed random walk when decoupled
+  dr_accel_inflation: 1000.0        # forward-accel process-noise multiplier when inflated
   freeze_bias_in_dr: true
   freeze_accel_bias_in_dr: false    # true: clamp b_a for *every* update while GNSS is denied
                                     # (NHC/MotionNet/ZUPT already freeze it via freeze_bias_in_dr)

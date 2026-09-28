@@ -87,6 +87,7 @@ class EKF2D:
         if not estimate_bias:
             self.P[BA, BA] = self.P[BG, BG] = self.P[BL, BL] = 0.0
         self.t = 0.0
+        self.denied = False    # GNSS-denied (blackout) - set by the engine before each predict
         self.w_last = 0.0      # last yaw-rate / lateral-accel input, used by the NHC model and gating
         self.al_last = 0.0
         self.gnss_enabled = True
@@ -114,6 +115,15 @@ class EKF2D:
         x, y, vf, vl, yaw, ba, bg, bl, rx, bv = self.s
         om = w - bg
         af = a_f - ba
+        # GNSS-denied forward-speed model (filter.dr_accel_mode):
+        #   normal   - integrate the forward accelerometer as usual
+        #   decouple - ignore it: v_f is a random walk driven only by MotionNet
+        #              (the forward axis carries ~13 deg misalignment cross-coupling
+        #              and a manoeuvre-dependent bias that pre-blackout b_a cannot capture)
+        #   inflate  - integrate it but multiply its process noise by dr_accel_inflation
+        accel_mode = self.fc.get("dr_accel_mode", "normal") if self.denied else "normal"
+        if accel_mode == "decouple":
+            af = 0.0
         c, s = np.cos(yaw), np.sin(yaw)
         self.s[X] += (vf * c - vl * s) * dt
         self.s[Y] += (vf * s + vl * c) * dt
@@ -127,7 +137,7 @@ class EKF2D:
         F = np.eye(N)
         F[X, VF], F[X, VL], F[X, YAW] = c * dt, -s * dt, (-vf * s - vl * c) * dt
         F[Y, VF], F[Y, VL], F[Y, YAW] = s * dt, c * dt, (vf * c - vl * s) * dt
-        F[VF, VL], F[VF, BA], F[VF, BG] = om * dt, -dt, -vl * dt
+        F[VF, VL], F[VF, BA], F[VF, BG] = om * dt, (0.0 if accel_mode == "decouple" else -dt), -vl * dt
         F[VL, VF], F[VL, BG], F[VL, BL] = -om * dt, vf * dt, -dt
         F[YAW, BG] = -dt
         F[BV, BV] = phi_v
@@ -138,6 +148,10 @@ class EKF2D:
                       fc["sigma_gyro"] ** 2 * dt, fc["sigma_ba_rw"] ** 2 * dt, fc["sigma_bg_rw"] ** 2 * dt,
                       fc["sigma_bl_rw"] ** 2 * dt, 0.0,    # r_x is a constant (no process noise)
                       fc.get("motion_bias_sigma", 0.0) ** 2 * (1.0 - phi_v ** 2) if self.bias_state else 0.0])
+        if accel_mode == "decouple":
+            q[VF] = fc["dr_speed_rw"] ** 2 * dt
+        elif accel_mode == "inflate":
+            q[VF] *= fc.get("dr_accel_inflation", 1000.0)
         if not self.estimate_bias:
             F[VF, BA] = F[VF, BG] = F[VL, BG] = F[YAW, BG] = F[VL, BL] = 0.0
             q[BA] = q[BG] = q[BL] = 0.0
