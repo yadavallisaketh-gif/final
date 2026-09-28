@@ -39,6 +39,16 @@ SETTINGS = {
     "Step 3, tau 120 s, no b_a clamp": {"filter.motion_bias_tau_s": 120.0, "filter.freeze_accel_bias_in_dr": False},
     "Step 3, tau 120 s, white frac 0.5": {"filter.motion_bias_tau_s": 120.0, "filter.motion_white_frac": 0.5},
     "Step 3, tau 120 s, sigma_b 5": {"filter.motion_bias_tau_s": 120.0, "filter.motion_bias_sigma": 5.0},
+    # realistic accelerometer process noise: the forward-acceleration error is
+    # maneuver-dependent (misalignment, scale), not a constant bias
+    "Step 2, sigma_acc 0.5": {**STEP2, "filter.sigma_acc": 0.5},
+    "Step 2, sigma_acc 1.0": {**STEP2, "filter.sigma_acc": 1.0},
+    "Step 3 tau 4.7 s, sigma_acc 0.5": {"filter.motion_bias_tau_s": 4.7, "filter.sigma_acc": 0.5},
+    "Step 3 tau 4.7 s, sigma_acc 1.0": {"filter.motion_bias_tau_s": 4.7, "filter.sigma_acc": 1.0},
+    "Step 3 tau 600 s, sigma_acc 1.0, white 1.0": {"filter.motion_bias_tau_s": 600.0, "filter.sigma_acc": 1.0,
+                                                    "filter.motion_white_frac": 1.0},
+    "Step 3 tau 600 s, sigma_acc 1.0, white 0.5": {"filter.motion_bias_tau_s": 600.0, "filter.sigma_acc": 1.0,
+                                                    "filter.motion_white_frac": 0.5},
 }
 
 
