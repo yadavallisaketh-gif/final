@@ -74,7 +74,11 @@ def train_one(cfg, data, tag: str, out_dir: str):
         use_nll = ep >= mc["nll_after_epoch"]
         for i in range(0, len(perm), mc["batch_size"]):
             b = perm[i:i + mc["batch_size"]]
-            mu, logvar = net(Xt[b])
+            xb = Xt[b]
+            if mc.get("augment_noise", 0) > 0:  # robustness to sensor noise / other phones
+                xb = xb * (1 + mc["augment_scale"] * torch.randn(len(b), 1, xb.shape[-1])) \
+                    + mc["augment_noise"] * torch.randn_like(xb)
+            mu, logvar = net(xb)
             if use_nll:  # Gaussian NLL -> calibrated uncertainty head
                 loss = 0.5 * (logvar + (yt[b] - mu) ** 2 / logvar.exp()).mean()
             else:

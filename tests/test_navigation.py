@@ -114,3 +114,14 @@ def test_reacquisition_is_gradual(cfg):
     assert m["endpoint_error_m"] > 20                       # there was a real error to correct
     assert m["reacq_max_step_m"] < 0.5 * m["endpoint_error_m"]  # ... corrected over several fixes
     assert m["reacq_time_to_5m_s"] < 20
+
+
+def test_nhc_never_changes_forward_speed_or_heading(cfg):
+    ekf = EKF2D(cfg)
+    ekf.initialise(0.0, 0.0, 0.0, 12.0, 0.3)
+    for k in range(1, 51):                         # build up cross-correlations first
+        ekf.predict(k * 0.1, 0.2, 0.5, 0.05)
+    vf, yaw, xy = ekf.s[2], ekf.s[4], ekf.s[:2].copy()
+    ekf.update_nhc(cfg["filter"]["nhc_sigma"])
+    assert ekf.s[2] == vf and ekf.s[4] == yaw and (ekf.s[:2] == xy).all()
+    assert abs(ekf.s[VL]) < 1.0

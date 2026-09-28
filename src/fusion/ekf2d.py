@@ -159,11 +159,20 @@ class EKF2D:
     def update_nhc(self, std: float) -> bool:
         H = np.zeros((1, N))
         H[0, VL] = 1.0
-        # NHC talks about sideways velocity only. Letting it move position, rotate
-        # the heading or re-estimate biases (through their correlations with v_l)
-        # turns a lateral accelerometer error into a phantom turn or offset.
-        frozen = (X, Y, YAW, BA, BG) if self.fc.get("freeze_bias_in_dr", True) else ()
+        # NHC talks about sideways velocity only. Letting it move position, change
+        # forward speed, rotate the heading or re-estimate biases (through their
+        # correlations with v_l) turns a lateral accelerometer error into a phantom
+        # turn, offset or slowdown. On validation drives restricting it to v_l
+        # roughly halved blackout drift.
+        frozen = (X, Y, VF, YAW, BA, BG) if self.fc.get("freeze_bias_in_dr", True) else ()
         return self._update("nhc", np.array([-self.s[VL]]), H, np.array([[std ** 2]]), None, frozen)
+
+    def update_zupt(self, std: float) -> bool:
+        """Zero-velocity update while the IMU says the car is standing still."""
+        H = np.zeros((2, N))
+        H[0, VF] = H[1, VL] = 1.0
+        frozen = (X, Y, YAW, BA, BG) if self.fc.get("freeze_bias_in_dr", True) else ()
+        return self._update("zupt", -self.s[[VF, VL]], H, np.eye(2) * std ** 2, None, frozen)
 
     def update_road(self, px: float, py: float, road_yaw: float, sigma_across: float,
                     sigma_heading: float | None) -> bool:

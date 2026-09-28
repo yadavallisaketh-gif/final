@@ -58,6 +58,8 @@ model:
   epochs: 12
   batch_size: 512
   lr: 0.002
+  augment_noise: 0.0                # std of additive noise on normalised features (0 = off)
+  augment_scale: 0.0                # per-window channel gain jitter
   nll_after_epoch: 4                # switch Huber -> Gaussian NLL (uncertainty) after this epoch
   path: outputs/models/motionnet.pt
 
@@ -79,6 +81,10 @@ filter:
   motion_sigma_floor: 0.3           # m/s minimum MotionNet pseudo-measurement std
   motion_sigma_scale: 1.5           # scale on predicted std (calibrated on validation drives)
   motion_every: 1                   # run MotionNet every N IMU samples at 10 Hz
+  zupt: true                        # zero-velocity update when the IMU says "stopped" (with the NHC stage)
+  zupt_min_still_s: 2.0             # the stop must persist this long ...
+  zupt_max_motion_speed: 2.0        # ... and MotionNet must agree (m/s), guarding against false stops
+  zupt_sigma: 0.2                   # m/s, soft
   freeze_bias_in_dr: true           # NHC / MotionNet updates may not re-estimate IMU biases
   display_blend_s: 3.0              # displayed position eases onto GNSS corrections over ~this time
 

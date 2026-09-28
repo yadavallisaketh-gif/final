@@ -79,6 +79,11 @@ class NavigationEngine:
         self._rejects: dict[str, int] = {}
         self._disp_offset = np.zeros(2)
         self._last_fix_t = -np.inf
+        w = max(int(round(cfg["preprocess"]["stationary_window_s"] * rate_hz)), 3)
+        self._acc_n: deque = deque(maxlen=w)
+        self._gyr_n: deque = deque(maxlen=w)
+        self._still_since: float | None = None
+        self._last_motion = np.inf
         self.history: list[tuple] = []
         self.step_time = 0.0
 
@@ -86,6 +91,7 @@ class NavigationEngine:
     def step(self, s: SensorSample) -> str:
         t0 = time.perf_counter()
         f = self.pre.process(s.acc, s.gyro)
+        self._track_stationary(s)
         a_f, a_l, w_u = f[0], f[1], f[5]
         self._feed_model(f)
         fix = s.gnss if self.gnss_enabled else None
@@ -131,6 +137,27 @@ class NavigationEngine:
         return self.trajectory()
 
     # ------------------------------------------------------------------ pieces
+    def _track_stationary(self, s: SensorSample):
+        """Causal IMU-only stop detector (same rule as preprocess.stationary_mask)."""
+        pc = self.cfg["preprocess"]
+        self._acc_n.append(float(np.linalg.norm(s.acc)))
+        self._gyr_n.append(float(np.linalg.norm(s.gyro)))
+        still = (len(self._acc_n) == self._acc_n.maxlen and np.std(self._acc_n, ddof=1) < pc["stationary_acc_std"]
+                 and np.std(self._gyr_n, ddof=1) < pc["stationary_gyro_std"]
+                 and np.mean(self._gyr_n) < pc["stationary_gyro_max"])
+        if not still:
+            self._still_since = None
+        elif self._still_since is None:
+            self._still_since = s.t
+
+    def _is_stopped(self, t: float) -> bool:
+        fc = self.fc
+        if self._still_since is None or t - self._still_since < fc["zupt_min_still_s"]:
+            return False
+        # Low vibration alone is not proof (a smooth cruise can look still), so a
+        # second, independent IMU-only opinion - MotionNet - must agree.
+        return self.model is not None and self._last_motion < fc["zupt_max_motion_speed"]
+
     def _feed_model(self, f: np.ndarray):
         if self.model is None:
             return
@@ -173,7 +200,10 @@ class NavigationEngine:
         if self.model is not None and len(self.buffer) == self.model.window \
                 and self.n % max(self.fc["motion_every"] * self.decim, 1) == 0:
             mu, sd = self.model.predict(np.asarray(self.buffer))
+            self._last_motion = mu
             ekf.update_speed(mu, max(sd * self.fc["motion_sigma_scale"], self.fc["motion_sigma_floor"]))
+        if self.variant.use_nhc and self.fc["zupt"] and self._is_stopped(t):
+            ekf.update_zupt(self.fc["zupt_sigma"])
         if self.matcher is not None and self.n % max(self.mc["every"] * self.decim, 1) == 0:
             m = self.matcher.match(ekf.s[X], ekf.s[Y], ekf.s[YAW], t)
             if m is not None:
