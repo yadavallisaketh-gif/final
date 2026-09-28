@@ -73,6 +73,15 @@ class NavigationEngine:
         # NHC / ZUPT are applied every IMU sample. Their sigmas are specified for
         # 10 Hz; scaling R with the rate keeps the information per second fixed.
         self.pseudo_scale = float(np.sqrt(rate_hz / 10.0))
+        # MotionNet errors are strongly autocorrelated (rho(0.1 s) ~ 0.98-0.99,
+        # tau ~ 5-7 s on validation drives). Fusing every 10 Hz window as white
+        # noise over-counts its information ~100x. Instead: update at
+        # motion_update_hz and inflate R by the AR(1) factor for *that* spacing,
+        #   (1 + rho) / (1 - rho),  rho = exp(-dt_update / tau).
+        self.motion_every_n = max(int(round(rate_hz / cfg["filter"]["motion_update_hz"])), 1)
+        tau = cfg["filter"].get("motion_err_tau_s") or 0.0
+        rho = float(np.exp(-(1.0 / cfg["filter"]["motion_update_hz"]) / tau)) if tau > 0 else 0.0
+        self.motion_r_inflation = (1.0 + rho) / (1.0 - rho)
         self._acc_block: list[np.ndarray] = []
         if self.model is not None:
             self._cols = [FEATURE_COLUMNS.index(f) for f in self.model.features]
@@ -99,7 +108,7 @@ class NavigationEngine:
         self.pre.set_speed(self.ekf.s[VF] if self.initialised else (s.gnss.speed if s.gnss is not None else np.nan))
         f = self.pre.process(s.acc, s.gyro)
         self._track_stationary(s)
-        a_f, a_l, a_u, w_u = f[0], f[1], f[2], f[5]
+        a_f, a_l, w_u = f[0], f[1], f[5]
         self._w_raw.append(float(f[5]))
         self._feed_model(f)
         fix = s.gnss if self.gnss_enabled else None
@@ -117,7 +126,7 @@ class NavigationEngine:
             return mode
 
         dt = s.t - self.ekf.t
-        self.ekf.predict(s.t, a_f, a_l, w_u, a_u)
+        self.ekf.predict(s.t, a_f, a_l, w_u)
         if fix is not None:
             mode = MODE_GNSS
             before = self.ekf.s[[X, Y]].copy()
@@ -131,8 +140,7 @@ class NavigationEngine:
             mode = MODE_DR
             self._dead_reckoning_updates(s.t)
         if self.variant.use_nhc:
-            apply_nhc(self.ekf, self.fc["nhc_sigma"] * self.pseudo_scale,
-                      self.fc["nhc_vertical_sigma"] * self.pseudo_scale)
+            apply_nhc(self.ekf, self.fc["nhc_sigma"] * self.pseudo_scale)
         self._disp_offset *= np.exp(-max(dt, 0.0) / self.fc["display_blend_s"])
         self._last_mode = mode
         self._record(s.t, mode)
@@ -206,11 +214,16 @@ class NavigationEngine:
     def _dead_reckoning_updates(self, t: float):
         ekf = self.ekf
         ekf.gnss_enabled = False            # any GNSS update from here on raises
-        if self.model is not None and len(self.buffer) == self.model.window \
-                and self.n % max(self.fc["motion_every"] * self.decim, 1) == 0:
+        fc = self.fc
+        if self.model is not None and len(self.buffer) == self.model.window and self.n % self.motion_every_n == 0:
             mu, sd = self.model.predict(np.asarray(self.buffer))
+            mu = max(mu - fc.get("motion_bias", 0.0), 0.0)
             self._last_motion = mu
-            ekf.update_speed(mu, max(sd * self.fc["motion_sigma_scale"], self.fc["motion_sigma_floor"]))
+            if fc.get("motion_sigma_fixed"):
+                std = fc["motion_sigma_fixed"]
+            else:
+                std = max(sd * fc["motion_sigma_scale"], fc["motion_sigma_floor"]) * np.sqrt(self.motion_r_inflation)
+            ekf.update_speed(mu, std)
         if self.variant.use_nhc and self.fc["zupt"] and self._is_stopped(t):
             ekf.update_zupt(self.fc["zupt_sigma"] * self.pseudo_scale)
             if self.fc["zaru"] and self.variant.estimate_bias and self.n % self.decim == 0:

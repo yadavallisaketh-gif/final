@@ -1,27 +1,35 @@
 """Feature 2B - 2-D error-state style EKF for vehicle dead reckoning.
 
-State  s = [x, y, v_f, v_l, yaw, b_a, b_g, v_u, b_l]
+State  s = [x, y, v_f, v_l, yaw, b_a, b_g, b_l, r_x]
   x, y  position in local ENU (m)
   v_f   forward speed (m/s), v_l lateral speed (m/s, +left)
   yaw   heading, ENU counter-clockwise from East (rad)
   b_a   forward accelerometer bias (m/s^2), b_g yaw-rate gyro bias (rad/s)
-  v_u   vertical speed in the vehicle frame (m/s)
   b_l   lateral accelerometer bias (m/s^2) - mostly mount-misalignment leakage
+  r_x   phone lever arm: distance of the phone ahead of the rear axle (m);
+        a constant parameter unless filter.estimate_lever_arm is set
 
-This is the playbook's [x, y, v, yaw, b_a, b_g] plus explicit lateral and
-vertical velocities, so that the non-holonomic constraints (v_l ~ 0, v_u ~ 0)
-are real measurements instead of being baked into the motion model.
+This is the playbook's [x, y, v, yaw, b_a, b_g] plus an explicit lateral
+velocity, so that the non-holonomic constraint is a real measurement instead of
+being baked into the motion model. (A vertical velocity / vertical NHC was
+tried in Step 1 and removed: it had no measurable effect on any metric and no
+coupling to the horizontal states.)
 
-Propagation uses vehicle-frame acceleration (a_f, a_l, a_u, gravity already
-removed) and yaw rate w; with om = w - b_g:
+Propagation uses vehicle-frame acceleration (a_f, a_l, gravity already
+removed) and yaw rate w, all measured at the phone; with om = w - b_g:
   x'   = v_f cos(yaw) - v_l sin(yaw)      v_f' = a_f - b_a + om v_l
   y'   = v_f sin(yaw) + v_l cos(yaw)      v_l' = a_l - b_l - om v_f
-  yaw' = om                               v_u' = a_u
+  yaw' = om
+v_f, v_l are therefore the velocity of the *phone*. The non-slipping point of a
+car is (roughly) the rear-axle centre; rigid-body kinematics give
+v_phone = v_axle + om x r, so in a turn the phone legitimately moves sideways at
+om * r_x. The NHC is applied at the axle: h = v_l - om * r_x = 0.
 
 Heading observability during a blackout: a gyro bias error d_bg makes the
 filter rotate the velocity vector, so v_l' picks up +d_bg * v_f. The lateral
 NHC innovation therefore carries information about b_g and yaw (d v_l / d b_g
-= v_f * dt in F); NHC updates are allowed to correct them. A lateral
+= v_f * dt in F); NHC updates may correct them when filter.freeze_bias_in_dr is
+off. A lateral
 accelerometer error produces the same symptom, so it has its own state b_l:
 the filter separates the two by their priors and because only the gyro term
 scales with speed. Without b_l, a lateral accelerometer error is misread as a
@@ -39,7 +47,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-X, Y, VF, VL, YAW, BA, BG, VU, BL = range(9)
+X, Y, VF, VL, YAW, BA, BG, BL, RX = range(9)
 N = 9
 CHI2_999 = {1: 10.83, 2: 13.82}
 
@@ -68,29 +76,35 @@ class EKF2D:
         self.fc = fc
         self.estimate_bias = estimate_bias
         self.s = np.zeros(N)
-        self.P = np.diag([1e4, 1e4, 100.0, 1.0, 10.0, 0.1, 0.01, 1.0, 0.1])
+        self.P = np.diag([1e4, 1e4, 100.0, 1.0, 10.0, 0.1, 0.01, 0.1, 0.0])
+        self.s[RX] = fc.get("lever_arm_x", 0.0)
         if not estimate_bias:
             self.P[BA, BA] = self.P[BG, BG] = self.P[BL, BL] = 0.0
         self.t = 0.0
+        self.w_last = 0.0      # last yaw-rate / lateral-accel input, used by the NHC model and gating
+        self.al_last = 0.0
         self.gnss_enabled = True
         self.log: list[UpdateRecord] = []
 
     # ------------------------------------------------------------------ init
     def initialise(self, t: float, x: float, y: float, speed: float, yaw: float, pos_std: float = 3.0):
         self.t = t
-        self.s[:] = [x, y, speed, 0.0, yaw, 0.0, 0.0, 0.0, 0.0]
+        fc = self.fc
+        self.s[:] = [x, y, speed, 0.0, yaw, 0.0, 0.0, 0.0, fc.get("lever_arm_x", 0.0)]
+        rx_var = fc.get("lever_arm_sigma", 0.5) ** 2 if fc.get("estimate_lever_arm", False) else 0.0
         self.P = np.diag([pos_std ** 2, pos_std ** 2, 1.0, 0.25, np.deg2rad(10) ** 2, 0.05 ** 2,
-                          self.fc["bg_prior_sigma"] ** 2, 0.25, self.fc["bl_prior_sigma"] ** 2])
+                          fc["bg_prior_sigma"] ** 2, fc["bl_prior_sigma"] ** 2, rx_var])
         if not self.estimate_bias:
             self.P[BA, BA] = self.P[BG, BG] = self.P[BL, BL] = 0.0
 
     # ------------------------------------------------------------------ predict
-    def predict(self, t: float, a_f: float, a_l: float, w: float, a_u: float = 0.0):
+    def predict(self, t: float, a_f: float, a_l: float, w: float):
         dt = t - self.t
         self.t = t
+        self.w_last, self.al_last = w, a_l
         if dt <= 0:
             return
-        x, y, vf, vl, yaw, ba, bg, vu, bl = self.s
+        x, y, vf, vl, yaw, ba, bg, bl, rx = self.s
         om = w - bg
         af = a_f - ba
         c, s = np.cos(yaw), np.sin(yaw)
@@ -99,7 +113,6 @@ class EKF2D:
         self.s[VF] += (af + om * vl) * dt
         self.s[VL] += (a_l - bl - om * vf) * dt
         self.s[YAW] = wrap(yaw + om * dt)
-        self.s[VU] += a_u * dt
 
         F = np.eye(N)
         F[X, VF], F[X, VL], F[X, YAW] = c * dt, -s * dt, (-vf * s - vl * c) * dt
@@ -112,7 +125,7 @@ class EKF2D:
         fc = self.fc
         q = np.array([0.0, 0.0, fc["sigma_acc"] ** 2 * dt, fc["sigma_acc"] ** 2 * dt,
                       fc["sigma_gyro"] ** 2 * dt, fc["sigma_ba_rw"] ** 2 * dt, fc["sigma_bg_rw"] ** 2 * dt,
-                      fc["sigma_acc"] ** 2 * dt, fc["sigma_bl_rw"] ** 2 * dt])
+                      fc["sigma_bl_rw"] ** 2 * dt, 0.0])   # r_x is a constant (no process noise)
         if not self.estimate_bias:
             F[VF, BA] = F[VF, BG] = F[VL, BG] = F[YAW, BG] = F[VL, BL] = 0.0
             q[BA] = q[BG] = q[BL] = 0.0
@@ -178,6 +191,8 @@ class EKF2D:
         filter.freeze_bias_in_dr is set; by default they stay observable.
         """
         extra = (BA, BG, BL) if self.fc.get("freeze_bias_in_dr", False) else ()
+        if not self.fc.get("estimate_lever_arm", False):
+            extra = tuple(set(extra) | {RX})
         if self.fc.get("freeze_accel_bias_in_dr", False):
             extra = tuple(set(extra) | {BA})
         return tuple(sorted(set(always) | set(extra)))
@@ -188,21 +203,37 @@ class EKF2D:
         return self._update(source, np.array([speed - self.s[VF]]), H, np.array([[std ** 2]]), 30.0,
                             self._dr_frozen())
 
-    def update_nhc(self, std: float, std_vertical: float | None = None) -> bool:
-        """Soft non-holonomic constraint: v_l = 0 and (optionally) v_u = 0.
+    def update_nhc(self, std: float, w: float | None = None, a_l: float | None = None) -> bool:
+        """Soft non-holonomic constraint at the rear axle: h = v_l - (w - b_g) * r_x = 0.
 
-        NHC may never move position or forward speed: through filter
+        Jacobian: dh/dv_l = 1, dh/db_g = +r_x, dh/dr_x = -(w - b_g).
+        R is inflated in turns and under lateral acceleration, where sideslip
+        and lever-arm error make "no sideways motion" least true:
+            R = std^2 * (1 + (|om| / om_ref)^2 + (|a_l| / a_ref)^2)
+        and the update is skipped entirely above nhc_max_yaw_rate (aggressive
+        cornering). NHC may never move position or forward speed: through filter
         correlations it would otherwise turn a lateral accelerometer error into
-        an offset or a slowdown (on validation drives that leak roughly doubled
-        drift). It *may* correct heading and gyro bias - the lateral velocity
-        innovation is exactly where a gyro bias shows up (see module docstring).
+        an offset or a slowdown. Biases follow filter.freeze_bias_in_dr.
         """
-        rows = [VL] if std_vertical is None else [VL, VU]
-        H = np.zeros((len(rows), N))
-        for i, r in enumerate(rows):
-            H[i, r] = 1.0
-        sig = [std] if std_vertical is None else [std, std_vertical]
-        return self._update("nhc", -self.s[rows], H, np.diag(np.square(sig)), None, self._dr_frozen(X, Y, VF))
+        fc = self.fc
+        w = self.w_last if w is None else w
+        a_l = self.al_last if a_l is None else a_l
+        om = w - self.s[BG]
+        wmax = fc.get("nhc_max_yaw_rate")
+        if wmax is not None and abs(om) > wmax:
+            self.log.append(UpdateRecord(self.t, "nhc", False, float("nan")))
+            return False
+        infl = 1.0
+        if fc.get("nhc_turn_rate_ref"):
+            infl += (abs(om) / fc["nhc_turn_rate_ref"]) ** 2
+        if fc.get("nhc_lat_acc_ref"):
+            infl += (abs(a_l) / fc["nhc_lat_acc_ref"]) ** 2
+        rx = self.s[RX]
+        H = np.zeros((1, N))
+        H[0, VL], H[0, BG], H[0, RX] = 1.0, rx, -om
+        innov = np.array([-(self.s[VL] - om * rx)])
+        always = (X, Y, VF, YAW) if fc.get("nhc_freeze_yaw", False) else (X, Y, VF)
+        return self._update("nhc", innov, H, np.array([[std ** 2 * infl]]), None, self._dr_frozen(*always))
 
     def update_zupt(self, std: float) -> bool:
         """Zero-velocity update while the IMU says the car is standing still."""
@@ -216,7 +247,7 @@ class EKF2D:
         H = np.zeros((1, N))
         H[0, BG] = 1.0
         return self._update("zaru", np.array([gyro_rate - self.s[BG]]), H, np.array([[std ** 2]]), CHI2_999[1],
-                            (X, Y, VF, VL, YAW, BA, VU, BL))
+                            (X, Y, VF, VL, YAW, BA, BL, RX))
 
     def update_road(self, px: float, py: float, road_yaw: float, sigma_across: float,
                     sigma_heading: float | None) -> bool:

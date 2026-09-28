@@ -65,7 +65,7 @@ def test_nhc_suppresses_lateral_drift_without_inventing_a_turn(cfg):
         for k in range(1, 601):
             ekf.predict(k * 0.1, 0.0, 0.3, 0.0)   # a biased lateral accelerometer, straight road
             if use:
-                ekf.update_nhc(cfg["filter"]["nhc_sigma"], cfg["filter"]["nhc_vertical_sigma"])
+                ekf.update_nhc(cfg["filter"]["nhc_sigma"])
         res[use] = (abs(ekf.s[VL]), abs(ekf.s[1]), abs(ekf.s[4]))
     assert res[True][0] < 0.2 * res[False][0]
     assert res[True][1] < 0.2 * res[False][1]
@@ -87,7 +87,7 @@ def test_nhc_observes_gyro_bias_during_blackout(cfg):
             v += a * 0.1
             ekf.predict(t, a, 0.0, bias)          # true yaw rate 0, gyro reads the bias
             ekf.update_speed(v, 0.3)
-            ekf.update_nhc(cfg["filter"]["nhc_sigma"], cfg["filter"]["nhc_vertical_sigma"])
+            ekf.update_nhc(cfg["filter"]["nhc_sigma"])
         out[freeze] = (ekf.s[6], abs(ekf.s[4]))
     assert out[True][0] == 0.0                     # frozen: never learns
     assert out[False][0] > 0.3 * bias              # observable: learns a large part of it
@@ -136,14 +136,14 @@ def test_filter_dimensions_through_a_full_cycle(cfg):
     ekf = EKF2D(cfg)
     ekf.initialise(0.0, 1.0, 2.0, 10.0, 0.3)
     for k in range(1, 51):
-        ekf.predict(k * 0.1, 0.2, 0.1, 0.05, 0.02)
+        ekf.predict(k * 0.1, 0.2, 0.1, 0.05)
         assert ekf.s.shape == (9,) and ekf.P.shape == (9, 9)
     ekf.update_gnss_position(5.0, 3.0, 3.0)
     ekf.update_gnss_speed(10.5)
     ekf.update_gnss_heading(0.35)
     ekf.update_speed(10.0, 1.0)
-    ekf.update_nhc(0.15, 0.3)
     ekf.update_nhc(0.15)
+    ekf.update_nhc(0.15, w=0.1, a_l=0.5)
     ekf.update_zupt(0.2)
     ekf.update_zaru(0.001, 0.003)
     ekf.update_road(5.0, 3.0, 0.3, 8.0, np.deg2rad(6))
@@ -208,7 +208,7 @@ def test_nhc_never_changes_position_or_forward_speed(cfg):
     for k in range(1, 51):                         # build up cross-correlations first
         ekf.predict(k * 0.1, 0.2, 0.5, 0.05)
     vf, xy = ekf.s[2], ekf.s[:2].copy()
-    ekf.update_nhc(cfg["filter"]["nhc_sigma"], cfg["filter"]["nhc_vertical_sigma"])
+    ekf.update_nhc(cfg["filter"]["nhc_sigma"])
     assert ekf.s[2] == vf and (ekf.s[:2] == xy).all()
     assert abs(ekf.s[VL]) < 1.0
 
@@ -241,3 +241,74 @@ def test_attitude_filter_tracks_pitch_with_gyro(cfg):
         theta += 0.05 * dt
         g = att.step(9.81 * np.array([np.sin(theta), 0, np.cos(theta)]), np.array([0.0, -0.05, 0.0]), dt)
     assert abs(np.arctan2(g[0], g[2]) - theta) < 1e-3
+
+
+def _steady_turn(cfg, r_x_true, r_x_model, om=0.3, v=10.0, seconds=20.0, freeze=False):
+    """Phone r_x_true ahead of the rear axle; the axle moves at v with yaw rate om.
+    Phone-point kinematics: v_l = om * r_x, a_l = om * v_f, a_f = -om * v_l."""
+    cfg["filter"]["freeze_bias_in_dr"] = freeze
+    cfg["filter"]["lever_arm_x"] = r_x_model
+    ekf = EKF2D(cfg)
+    vl = om * r_x_true
+    ekf.initialise(0.0, 0.0, 0.0, v, 0.0)
+    ekf.s[VL] = vl
+    nis = []
+    for k in range(1, int(seconds * 10) + 1):
+        ekf.predict(k * 0.1, -om * vl, om * v, om)
+        ekf.update_nhc(cfg["filter"]["nhc_sigma"])
+        nis.append(ekf.log[-1].nis)
+    return ekf, np.array(nis)
+
+
+def test_lever_arm_removes_phantom_lateral_innovation_in_a_turn(cfg):
+    ekf, nis = _steady_turn(cfg, 1.8, 1.8)
+    assert np.nanmax(nis) < 1e-3                       # innovation ~ 0: nothing to "correct"
+    assert abs(ekf.s[VL] - 0.3 * 1.8) < 0.01           # the phone's true sideways motion survives
+    assert abs(ekf.s[6]) < 1e-4                        # no phantom gyro bias
+
+
+def test_without_lever_arm_the_same_turn_injects_false_corrections(cfg):
+    ekf_ok, nis_ok = _steady_turn(cfg, 1.8, 1.8)
+    ekf_bad, nis_bad = _steady_turn(cfg, 1.8, 0.0)
+    # (the turn-rate inflation of R already softens it: NIS stays < 1, but it is
+    # persistent and one-sided, so it still biases the states it may touch)
+    assert np.nanmean(nis_bad) > 10 * max(np.nanmean(nis_ok), 1e-9)
+    assert abs(ekf_bad.s[6]) > 10 * max(abs(ekf_ok.s[6]), 1e-6)   # leaks into the gyro bias
+    assert abs(ekf_bad.s[VL] - 0.54) > 0.1                          # and erodes the true v_l
+
+
+def test_nhc_is_skipped_in_aggressive_cornering(cfg):
+    ekf = EKF2D(cfg)
+    ekf.initialise(0.0, 0.0, 0.0, 15.0, 0.0)
+    ekf.predict(0.1, 0.0, 7.5, 0.5)                    # 0.5 rad/s > nhc_max_yaw_rate
+    before = ekf.s.copy()
+    assert ekf.update_nhc(cfg["filter"]["nhc_sigma"]) is False
+    assert (ekf.s == before).all()
+    assert ekf.log[-1].source == "nhc" and not ekf.log[-1].accepted
+
+
+def test_nhc_noise_inflates_with_turn_rate_and_lateral_accel(cfg):
+    gains = []
+    for w, al in ((0.0, 0.0), (0.2, 0.0), (0.0, 2.0)):
+        ekf = EKF2D(cfg)
+        ekf.initialise(0.0, 0.0, 0.0, 10.0, 0.0)
+        ekf.P[VL, VL] = 1.0
+        ekf.s[VL] = 0.5 + w * cfg["filter"]["lever_arm_x"]   # same axle-level violation (0.5 m/s)
+        ekf.update_nhc(0.3, w=w, a_l=al)
+        gains.append(0.5 + w * cfg["filter"]["lever_arm_x"] - ekf.s[VL])
+    # R x5 in both cases: the correction shrinks from K = 1/1.09 to 1/1.45 of the innovation
+    assert gains[1] < 0.8 * gains[0] and gains[2] < 0.8 * gains[0]
+
+
+def test_motionnet_update_rate_and_r_inflation(cfg):
+    from src.preprocess import Alignment
+    from src.models.motion_net import MotionModel, MotionGRU
+    al = Alignment(np.eye(3), 9.81, 0, 0, 1, 1, 1, 0)
+    m = MotionModel(MotionGRU(5, 8), "gru", ["a_f", "a_l", "a_u", "w_u", "w_h"], 20, np.zeros(5), np.ones(5), hidden=8)
+    eng = NavigationEngine(cfg, al, VARIANTS["C"], 10.0, m)
+    assert eng.motion_every_n == 10                     # 1 Hz at a 10 Hz IMU
+    rho = np.exp(-1.0 / cfg["filter"]["motion_err_tau_s"])
+    assert np.isclose(eng.motion_r_inflation, (1 + rho) / (1 - rho))
+    cfg["filter"].update(motion_update_hz=10.0, motion_err_tau_s=0)
+    eng10 = NavigationEngine(cfg, al, VARIANTS["C"], 10.0, m)
+    assert eng10.motion_every_n == 1 and eng10.motion_r_inflation == 1.0   # old behaviour reproducible

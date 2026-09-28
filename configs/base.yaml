@@ -91,11 +91,25 @@ filter:
   reacq_inflation: 25.0             # R multiplier right after GNSS returns ...
   reacq_tau_s: 3.0                  # ... decaying with this time constant
   reacq_force_after: 5              # accept GNSS after this many consecutive gated rejections
-  nhc_sigma: 0.15                   # m/s soft lateral-velocity constraint at 10 Hz (motorcycles: ~1.0)
-  nhc_vertical_sigma: 0.3           # m/s soft vertical-velocity constraint at 10 Hz
+  nhc_sigma: 0.15                   # m/s soft rear-axle lateral-velocity constraint at 10 Hz (motorcycles: ~1.0)
+  lever_arm_x: 1.8                  # m, phone ahead of the rear axle (NHC holds at the axle, not the phone)
+  estimate_lever_arm: false         # true: r_x becomes a filter state with prior sigma lever_arm_sigma
+  lever_arm_sigma: 0.5
+  nhc_turn_rate_ref: 0.1            # R_nhc *= 1 + (|om|/0.1)^2 + (|a_l|/1.0)^2  (null disables a term)
+  nhc_lat_acc_ref: 1.0
+  nhc_max_yaw_rate: 0.4             # rad/s: skip NHC above this (aggressive cornering / sideslip)
+  nhc_freeze_yaw: false             # true: NHC may not rotate the heading (pre-Step-1 behaviour)
   motion_sigma_floor: 0.3           # m/s minimum MotionNet pseudo-measurement std
   motion_sigma_scale: 1.0           # scale on predicted std (tuned on validation drives: src.tune)
-  motion_every: 1                   # run MotionNet every N IMU samples at 10 Hz
+  motion_update_hz: 1.0             # MotionNet speed updates per second (was 10)
+  motion_err_tau_s: 6.7             # s, MotionNet error correlation time (median over validation drives);
+                                    # R is inflated by (1+rho)/(1-rho), rho = exp(-1/(hz*tau)); 0 = no inflation
+  motion_sigma_fixed: null          # m/s: if set, use this instead of predicted-sigma * inflation
+  # A scalar bias correction was requested (+0.34 m/s, measured on test drive S1).
+  # Validation drives disagree (S3c -3.19, Vta16 +0.07, Vfa01 -0.41 m/s): the
+  # bias is drive-dependent, and taking it from a test drive would leak the test
+  # set. Kept at 0; the option exists for a bias learned on training drives.
+  motion_bias: 0.0
   zupt: true                        # zero-velocity update when the IMU says "stopped" (with the NHC stage)
   zupt_min_still_s: 2.0             # the stop must persist this long ...
   zupt_max_motion_speed: 2.0        # ... and MotionNet must agree (m/s), guarding against false stops
