@@ -102,7 +102,12 @@ filter:
   zupt_sigma: 0.2                   # m/s at 10 Hz, soft
   zaru: true                        # zero angular-rate update while stopped -> gyro bias
   zaru_sigma: 0.003                 # rad/s
-  freeze_bias_in_dr: false          # keep IMU biases observable during a blackout
+  # NHC / MotionNet may not update IMU biases during a blackout (validation, phone
+  # GNSS: letting NHC drive b_g raised median drift 32% -> 45% because IO-VNBD's
+  # lateral acceleration carries ~13 deg misalignment leakage that looks like gyro
+  # bias). The gyro bias is still NOT frozen: ZARU updates it at every stop.
+  freeze_bias_in_dr: true
+  freeze_accel_bias_in_dr: false
   display_blend_s: 3.0              # displayed position eases onto GNSS corrections over ~this time
 
 map:
