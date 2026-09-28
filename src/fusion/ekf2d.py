@@ -88,6 +88,7 @@ class EKF2D:
             self.P[BA, BA] = self.P[BG, BG] = self.P[BL, BL] = 0.0
         self.t = 0.0
         self.denied = False    # GNSS-denied (blackout) - set by the engine before each predict
+        self.accel_noise_scale = 1.0   # >1 while an IMU anomaly (shock) makes the accelerometer unreliable
         self.w_last = 0.0      # last yaw-rate / lateral-accel input, used by the NHC model and gating
         self.al_last = 0.0
         self.gnss_enabled = True
@@ -150,6 +151,8 @@ class EKF2D:
                       fc["sigma_gyro"] ** 2 * dt, fc["sigma_ba_rw"] ** 2 * dt, fc["sigma_bg_rw"] ** 2 * dt,
                       fc["sigma_bl_rw"] ** 2 * dt, 0.0,    # r_x is a constant (no process noise)
                       fc.get("motion_bias_sigma", 0.0) ** 2 * (1.0 - phi_v ** 2) if self.bias_state else 0.0])
+        q[VF] *= self.accel_noise_scale
+        q[VL] *= self.accel_noise_scale
         if accel_mode == "decouple":
             q[VF] = fc["dr_speed_rw"] ** 2 * dt
         elif accel_mode == "inflate":

@@ -276,6 +276,22 @@ class ImuPreprocessor:
             bias_phone = alignment.R.T @ alignment.gyro_bias
             self.att = AttitudeFilter(alignment.up, alignment.gravity, cfg, bias_phone)
 
+    def current_up(self) -> np.ndarray:
+        """Current gravity direction in the phone frame."""
+        if self.att is not None:
+            return self.att.g.copy()
+        return self.al.R.T @ np.array([0.0, 0.0, 1.0])
+
+    def relevel(self, rotation: np.ndarray):
+        """The phone moved in its mount by `rotation` (phone frame): move the gravity
+        estimate with it. The mount yaw is kept - it is not observable without GNSS."""
+        up = rotation @ self.current_up()
+        up /= np.linalg.norm(up)
+        if self.att is not None:
+            self.att.g = up
+        elif self.al.R_yaw is not None:
+            self.al.R = self.al.R_yaw @ rotation_to_up(up)
+
     def set_speed(self, speed: float):
         """Speed estimate for velocity-aided levelling (NaN = unknown)."""
         self._speed = float(speed)

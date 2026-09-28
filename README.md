@@ -100,6 +100,22 @@ Read these numbers honestly:
 - **Phone GPS is much worse.** With the phone's own GPS before the blackout, the same pipeline gives
   about 34 / 21 / 50%.
 
+### Anomaly & misalignment detector (`src/anomaly_detector.py`)
+
+A causal, IMU-only watchdog runs ahead of preprocessing in every variant except raw INS (A).
+Thresholds are in `configs/base.yaml: anomaly` and come from the training drives.
+- **Shock (pothole / speed bump).** |a_z − rolling 1 s mean| > 5 m/s² (training p99.95). For the next
+  1 s the accelerometer process noise on v_f and v_l is multiplied by 100, so MotionNet, NHC and
+  the filter's momentum carry the speed through the jolt.
+- **Mount slip.** A gyro burst (‖ω − rolling mean‖ > 1 rad/s) opens a candidate. It is confirmed only if
+  the mean specific force over the next 1 s has rotated by more than 3° relative to the second before.
+  Bumps and sharp turns also make gyro bursts, and this check filters them out. On a confirmed slip, the
+  gravity estimate of the dynamic attitude filter is rotated by the measured rotation (instant
+  re-levelling) and the mount-dependent lateral bias `b_l` is reopened. An unconfirmed burst is
+  counted as a *transient* and handled like a shock.
+- `python -m src.evaluate` prints a per-drive summary of what was caught and how much of it fell inside
+  blackouts. Each window row in the CSV also records `anom_shock`, `anom_transient` and `anom_slip`.
+
 ## Quick start
 
 ```bash
@@ -181,6 +197,7 @@ src/download_data.py         IO-VNBD fetcher (no git-lfs needed)
 src/data_io.py               loader, schema mapping, clock sync, ENU conversion, audit checks
 src/sensors.py               SensorSample / SensorSource (CSV replay, synthetic 200 Hz)
 src/preprocess.py            Feature 1
+src/anomaly_detector.py      pothole-shock / mount-slip watchdog (Q inflation, re-levelling)
 src/blackout.py              GNSS mask generator, EstimatorInput / HiddenTruth
 src/models/motion_net.py     Feature 2a (GRU / TCN + wrapper with input guards)
 src/fusion/ekf2d.py          Feature 2b

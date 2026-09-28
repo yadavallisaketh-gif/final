@@ -20,9 +20,10 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from .anomaly_detector import AnomalyDetector
 from .constraints.map_match import MapMatcher
 from .constraints.nhc import apply_nhc
-from .fusion.ekf2d import EKF2D, VF, VL, X, Y, YAW
+from .fusion.ekf2d import BL, EKF2D, VF, VL, X, Y, YAW
 from .models.motion_net import MotionModel
 from .preprocess import FEATURE_COLUMNS, Alignment, ImuPreprocessor
 from .sensors import SensorSample
@@ -102,6 +103,11 @@ class NavigationEngine:
         self._last_motion = np.inf
         self.history: list[tuple] = []
         self.step_time = 0.0
+        # IMU anomaly / mount-slip detector (not for the raw-INS baseline)
+        ac = cfg.get("anomaly", {})
+        self.detector = AnomalyDetector(cfg, rate_hz) if ac.get("enabled") and variant.preprocess == "filtered" else None
+        self._shock_until = -np.inf
+        self.anomalies: list[tuple] = []     # (t, kind, magnitude, mode when it happened)
 
     # ------------------------------------------------------------------ main step
     def step(self, s: SensorSample) -> str:
@@ -109,6 +115,9 @@ class NavigationEngine:
         # velocity aid for the attitude filter: the EKF's speed (GNSS-aided, or
         # MotionNet-driven in a blackout); before initialisation, the raw fix
         self.pre.set_speed(self.ekf.s[VF] if self.initialised else (s.gnss.speed if s.gnss is not None else np.nan))
+        event = self.detector.update(s.t, s.acc, s.gyro) if self.detector is not None else None
+        if event is not None:
+            self._handle_anomaly(event)
         f = self.pre.process(s.acc, s.gyro)
         self._track_stationary(s)
         a_f, a_l, w_u = f[0], f[1], f[5]
@@ -131,6 +140,7 @@ class NavigationEngine:
         dt = s.t - self.ekf.t
         # blackout state must be known *before* propagation (GNSS-denied speed model)
         self.ekf.denied = fix is None and s.t - self._last_fix_t > self.fc["gnss_timeout_s"]
+        self.ekf.accel_noise_scale = self.cfg["anomaly"]["shock_q_scale"] if s.t < self._shock_until else 1.0
         self.ekf.predict(s.t, a_f, a_l, w_u)
         if fix is not None:
             mode = MODE_GNSS
@@ -163,6 +173,18 @@ class NavigationEngine:
         return self.trajectory()
 
     # ------------------------------------------------------------------ pieces
+    def _handle_anomaly(self, ev):
+        ac = self.cfg["anomaly"]
+        # shock / transient / slip: distrust the accelerometer for a moment
+        self._shock_until = ev.t + ac["shock_hold_s"]
+        if ev.kind == "slip":
+            # new mounting attitude: re-level to the new gravity vector and let the
+            # mount-dependent lateral accelerometer bias be re-learned
+            self.pre.relevel(ev.rotation)
+            self.ekf.P[BL, BL] += self.fc["bl_prior_sigma"] ** 2
+        mode = MODE_DR if self.ekf.denied else (MODE_GNSS if self.initialised else MODE_INIT)
+        self.anomalies.append((ev.t, ev.kind, ev.magnitude, mode))
+
     def _track_stationary(self, s: SensorSample):
         """Causal IMU-only stop detector (same rule as preprocess.stationary_mask)."""
         pc = self.cfg["preprocess"]

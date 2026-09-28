@@ -28,6 +28,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from .anomaly_detector import AnomalyDetector
 from .blackout import apply_blackout, make_blackout_windows, segment_for_window
 from .config import load_config
 from .constraints.map_match import MapMatcher, RoadNetwork
@@ -93,6 +94,8 @@ def run_window(cfg, drive, w, variants, model, network):
                  motion_updates=inside.get("motionnet", 0), nhc_updates=inside.get("nhc", 0),
                  map_updates=inside.get("map_position", 0), gnss_updates_in_blackout=0,
                  align_fit_corr=al.fit_corr, align_mount_deg=al.mount_yaw_deg)
+        for kind in ("shock", "transient", "slip"):      # handled by the detector inside the blackout
+            m[f"anom_{kind}"] = sum(1 for t, k, *_ in eng.anomalies if k == kind and w.t_start <= t < w.t_end)
         rows.append(m)
         trajs[key] = traj
     return rows, trajs, truth
@@ -158,6 +161,50 @@ def summarise(df: pd.DataFrame) -> pd.DataFrame:
     return out.sort_values(["duration_s", "variant"], key=lambda s: s.map(order) if s.name == "variant" else s)
 
 
+def anomaly_drive_pass(drive, windows, cfg) -> dict:
+    """Run the detector causally over the whole phone IMU stream of one drive (reset per
+    session). Windows overlap, so blackout counts come from this pass, not from summing
+    per-window engine logs."""
+    df = drive.df
+    events, km = [], 0.0
+    for _, seg in df.groupby("session", sort=True):
+        t = seg["t"].to_numpy()
+        km += float(np.sum(seg["ref_speed"].to_numpy()[1:] * np.diff(t))) / 1000.0
+        det = AnomalyDetector(cfg, 1.0 / np.median(np.diff(t)))
+        for ti, a, g in zip(t, seg[["ax", "ay", "az"]].to_numpy(), seg[["gx", "gy", "gz"]].to_numpy()):
+            det.update(ti, a, g)
+        events += det.events
+    in_blackout = [e for e in events if any(w.t_start <= e.t < w.t_end for w in windows)]
+    count = lambda ev, k: sum(1 for e in ev if e.kind == k)
+    return {"drive": drive.drive_id, "km": km,
+            **{k: count(events, k) for k in ("shock", "transient", "slip")},
+            **{f"{k}_blackout": count(in_blackout, k) for k in ("shock", "transient", "slip")},
+            "slips": [(round(e.t, 1), round(e.magnitude, 1)) for e in events if e.kind == "slip"]}
+
+
+def print_anomaly_summary(passes: list[dict], df: pd.DataFrame, variant: str, cfg: dict):
+    ac = cfg["anomaly"]
+    print(f"\nANOMALY DETECTOR (shock |dAz| > {ac['shock_accel_thr']} m/s^2, slip |dgyro| > "
+          f"{ac['slip_gyro_thr']} rad/s confirmed by > {ac['slip_tilt_deg']} deg gravity shift)")
+    for p in passes:
+        n = p["shock"] + p["transient"]
+        print(f"  {p['drive']:>3}: {p['km']:6.1f} km  shocks {p['shock']:3d}  transients {p['transient']:3d}  "
+              f"slips {p['slip']:2d}  ({n / max(p['km'], 1e-9):.2f} Q-suppressions/km)"
+              + (f"  slip events (t s, tilt deg): {p['slips']}" if p["slips"] else ""))
+    tot = {k: sum(p[k] for p in passes) for k in ("shock", "transient", "slip",
+                                                   "shock_blackout", "transient_blackout", "slip_blackout")}
+    print(f"  total caught: {tot['shock']} shocks + {tot['transient']} transients -> accel Q x{ac['shock_q_scale']:g} "
+          f"for {ac['shock_hold_s']:g} s each; {tot['slip']} mount slips -> attitude re-levelled")
+    print(f"  inside blackouts (no GNSS, suppression acts on pure DR): {tot['shock_blackout']} shocks, "
+          f"{tot['transient_blackout']} transients, {tot['slip_blackout']} slips")
+    if "anom_shock" in df:
+        d = df[df.variant == variant]
+        hit = d[(d.anom_shock + d.anom_transient + d.anom_slip) > 0]
+        print(f"  {variant} windows with >=1 anomaly handled: {len(hit)}/{len(d)}; median drift "
+              f"{hit.drift_percent.median() if len(hit) else float('nan'):.1f}% vs "
+              f"{d.drop(hit.index).drift_percent.median():.1f}% for anomaly-free windows")
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--config")
@@ -188,6 +235,7 @@ def main(argv=None):
     rows = []
     kept: dict[str, list] = {}           # per drive: (window, {A, D} trajectories, truth) for SIH figures
     drive_objs = {}
+    anomaly_passes = []
     for d in drives:
         drive = load_drive(d, cfg)
         network = build_network(cfg, drive.origin, exclude=set(drives)) if cfg["map"]["enabled"] else None
@@ -196,6 +244,8 @@ def main(argv=None):
         windows = make_blackout_windows(d, drive.df, cfg)
         print(f"{d}: {len(windows)} blackout windows")
         drive_objs[d] = drive
+        if cfg.get("anomaly", {}).get("enabled"):
+            anomaly_passes.append(anomaly_drive_pass(drive, windows, cfg))
         kept[d] = []
         plotted: dict[float, int] = {}
         for w in windows:
@@ -232,6 +282,8 @@ def main(argv=None):
         flag = "PASS" if med < 10.0 else "FAIL"
         print(f"BENCHMARK {int(dur):4d} s blackout, {VARIANTS[best].label}: median drift {med:.2f}% "
               f"over {int(((df.duration_s == dur) & (df.variant == best)).sum())} windows -> {flag} (<10%)")
+    if anomaly_passes:
+        print_anomaly_summary(anomaly_passes, df, best, cfg)
     if a.sih_plots:
         for p in plot_sih_submission(kept, drive_objs, cfg, os.path.join(out, "plots"), a.tag):
             print(f"saved {p}")
