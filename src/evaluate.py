@@ -166,6 +166,8 @@ def main(argv=None):
     ap.add_argument("--variants", nargs="*", default=list(VARIANTS))
     ap.add_argument("--plots", type=int, default=2, help="trajectory plots per drive and duration")
     ap.add_argument("--tag", default="test")
+    ap.add_argument("--sih-plots", action="store_true",
+                    help="also save 300-dpi submission figures (ground truth vs full system)")
     a = ap.parse_args(argv)
     cfg = load_config(a.config, a.set)
     split = check_split(cfg)
@@ -184,6 +186,8 @@ def main(argv=None):
     variants = [k for k in a.variants if not (VARIANTS[k].use_map and not cfg["map"]["enabled"])]
 
     rows = []
+    kept: dict[str, list] = {}           # per drive: (window, {A, D} trajectories, truth) for SIH figures
+    drive_objs = {}
     for d in drives:
         drive = load_drive(d, cfg)
         network = build_network(cfg, drive.origin, exclude=set(drives)) if cfg["map"]["enabled"] else None
@@ -191,10 +195,15 @@ def main(argv=None):
             print(f"{d}: road network '{network.source}' with {len(network)} segments")
         windows = make_blackout_windows(d, drive.df, cfg)
         print(f"{d}: {len(windows)} blackout windows")
+        drive_objs[d] = drive
+        kept[d] = []
         plotted: dict[float, int] = {}
         for w in windows:
             r, trajs, truth = run_window(cfg, drive, w, variants, model, network)
             rows += r
+            if a.sih_plots:
+                kept[d].append((w, {k: v for k, v in trajs.items() if k in ("A", "D")}, truth,
+                                {x["variant"]: x for x in r}))
             summary = "  ".join(f"{x['variant']}:{x['drift_percent']:.1f}%" for x in r)
             print(f"  {d} s{w.session} t={w.t_start:7.0f} {w.duration:4.0f}s dist={r[0]['distance_m']:6.0f}m  {summary}")
             if plotted.get(w.duration, 0) < a.plots:
@@ -217,6 +226,109 @@ def main(argv=None):
                    "gnss_updates_inside_blackouts": 0}, f, indent=2)
     plot_summary(summ, os.path.join(out, "plots", f"summary_{a.tag}.png"))
     print(summ.to_string(index=False, float_format=lambda v: f"{v:.2f}"))
+    best = "D" if "D" in variants else variants[-1]
+    for dur in sorted(df["duration_s"].unique()):
+        med = df[(df.duration_s == dur) & (df.variant == best)]["drift_percent"].median()
+        flag = "PASS" if med < 10.0 else "FAIL"
+        print(f"BENCHMARK {int(dur):4d} s blackout, {VARIANTS[best].label}: median drift {med:.2f}% "
+              f"over {int(((df.duration_s == dur) & (df.variant == best)).sum())} windows -> {flag} (<10%)")
+    if a.sih_plots:
+        for p in plot_sih_submission(kept, drive_objs, cfg, os.path.join(out, "plots"), a.tag):
+            print(f"saved {p}")
+
+
+def _assumption_note(cfg: dict) -> str:
+    src = {"vehicle": "car reference receiver (IO-VNBD V-file)", "phone": "smartphone GPS (IO-VNBD S-file)"}
+    dr = {"decouple": "MotionNet-only speed (accelerometer decoupled)", "inflate": "MotionNet-dominated speed",
+          "normal": "IMU + MotionNet speed"}[cfg["filter"].get("dr_accel_mode", "normal")]
+    return (f"Inside every blackout: smartphone IMU only ({dr}, lever-arm NHC, map proxy from training drives); "
+            f"no GNSS of any kind. Pre-blackout GNSS: {src[cfg['data']['gnss_source']]}. "
+            f"Test drives (S1, M) not used for training; settings selected on validation drives.")
+
+
+def plot_sih_submission(kept: dict, drives: dict, cfg: dict, out_dir: str, tag: str) -> list[str]:
+    """300-dpi submission figures: ground truth (V-dataset) vs full system (S-dataset IMU + AI).
+
+    Representative, not cherry-picked: panels show the window with the *median*
+    drift for each drive and blackout length; the overview shows every 60 s window.
+    """
+    paths = []
+    note = _assumption_note(cfg)
+    # 1) overview per drive: full ground-truth track + every 60 s blackout
+    for d, items in kept.items():
+        wins = [it for it in items if it[0].duration == 60] or items
+        g = drives[d].df[drives[d].df["ref_valid"]]
+        aspect = np.ptp(g["ref_y"]) / max(np.ptp(g["ref_x"]), 1.0)
+        fig, ax = plt.subplots(figsize=(11, float(np.clip(11 * aspect + 1.6, 4.5, 12))))
+        ax.plot(g["ref_x"], g["ref_y"], color="0.82", lw=1.2, label="ground-truth track (V-dataset)", zorder=0)
+        for i, (w, trajs, truth, met) in enumerate(wins):
+            ins = w.contains(truth.t)
+            tr = trajs["D"]
+            ax.plot(truth.x[ins], truth.y[ins], "k", lw=2.2, label="ground truth during blackout" if i == 0 else None)
+            ax.plot(tr["x"].to_numpy()[ins], tr["y"].to_numpy()[ins], color="#1f77b4", lw=1.8,
+                    label="Hackathon MVP estimate (no GNSS)" if i == 0 else None)
+            ax.plot(truth.x[ins][0], truth.y[ins][0], "g^", ms=7, label="blackout start" if i == 0 else None)
+            ax.plot(tr["x"].to_numpy()[ins][-1], tr["y"].to_numpy()[ins][-1], "o", color="#1f77b4", ms=5)
+            ax.annotate(f"{met['D']['drift_percent']:.1f}%", (truth.x[ins][-1], truth.y[ins][-1]),
+                        xytext=(6, 6), textcoords="offset points", fontsize=8)
+        drifts = [it[3]["D"]["drift_percent"] for it in wins]
+        ax.set_aspect("equal")
+        ax.set_xlabel("east (m)")
+        ax.set_ylabel("north (m)")
+        ax.set_title(f"IO-VNBD drive {d}: {len(wins)} simulated {int(wins[0][0].duration)} s GNSS blackouts\n"
+                     f"median drift {np.median(drifts):.1f}% of distance (labels: drift per blackout)")
+        ax.legend(loc="best", fontsize=9)
+        fig.text(0.01, 0.005, note, fontsize=6.5, wrap=True, va="bottom")
+        fig.tight_layout(rect=(0, 0.03, 1, 1))
+        path = os.path.join(out_dir, f"sih_overview_{d}_{tag}.png")
+        fig.savefig(path, dpi=300, bbox_inches="tight", pad_inches=0.15)
+        plt.close(fig)
+        paths.append(path)
+
+    # 2) panels: median-drift window per drive x duration, zoomed
+    durs = sorted({it[0].duration for items in kept.values() for it in items})
+    dnames = list(kept)
+    fig, axes = plt.subplots(len(durs), len(dnames), figsize=(6.2 * len(dnames), 5.6 * len(durs)), squeeze=False)
+    for ci, d in enumerate(dnames):
+        for ri, dur in enumerate(durs):
+            ax = axes[ri][ci]
+            cand = sorted([it for it in kept[d] if it[0].duration == dur], key=lambda it: it[3]["D"]["drift_percent"])
+            if not cand:
+                ax.axis("off")
+                continue
+            w, trajs, truth, met = cand[len(cand) // 2]          # the median window
+            ins = w.contains(truth.t)
+            pre = (truth.t >= w.t_start - 30) & (truth.t < w.t_start)
+            ax.plot(truth.x[pre], truth.y[pre], color="0.6", lw=2, label="GNSS before blackout")
+            ax.plot(truth.x[ins], truth.y[ins], "k", lw=2.5, label="ground truth (V-dataset)")
+            ax.plot(trajs["D"]["x"].to_numpy()[ins], trajs["D"]["y"].to_numpy()[ins], color="#1f77b4", lw=2,
+                    label="Hackathon MVP (S-dataset IMU + AI)")
+            if "A" in trajs:
+                ax.plot(trajs["A"]["x"].to_numpy()[ins], trajs["A"]["y"].to_numpy()[ins], "--", color="#d62728",
+                        lw=1.2, label="raw inertial integration (baseline)")
+            ax.plot(truth.x[ins][0], truth.y[ins][0], "g^", ms=9)
+            ax.plot(truth.x[ins][-1], truth.y[ins][-1], "ks", ms=7)
+            ax.plot(trajs["D"]["x"].to_numpy()[ins][-1], trajs["D"]["y"].to_numpy()[ins][-1], "o", color="#1f77b4", ms=7)
+            cx, cy = np.median(truth.x[ins]), np.median(truth.y[ins])
+            span = max(np.ptp(truth.x[ins]), np.ptp(truth.y[ins]), 120) * 0.75
+            ax.set_xlim(cx - span, cx + span)
+            ax.set_ylim(cy - span, cy + span)
+            ax.set_aspect("equal")
+            m = met["D"]
+            ax.set_title(f"{d}, {int(dur)} s blackout (median of {len(cand)} windows)\n"
+                         f"{m['distance_m']:.0f} m travelled, end error {m['endpoint_error_m']:.1f} m, "
+                         f"drift {m['drift_percent']:.1f}%", fontsize=10)
+            ax.set_xlabel("east (m)")
+            ax.set_ylabel("north (m)")
+            if ri == 0 and ci == 0:
+                ax.legend(fontsize=8, loc="best")
+    fig.text(0.01, 0.003, note, fontsize=7, wrap=True, va="bottom")
+    fig.tight_layout(rect=(0, 0.02, 1, 1))
+    path = os.path.join(out_dir, f"sih_panels_{tag}.png")
+    fig.savefig(path, dpi=300, bbox_inches="tight", pad_inches=0.15)
+    plt.close(fig)
+    paths.append(path)
+    return paths
 
 
 def to_markdown(df: pd.DataFrame) -> str:

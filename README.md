@@ -65,6 +65,41 @@ Per-window numbers are in `results/metrics/eval_windows_test.csv`. Plots are in 
 
 
 
+## SIH screening submission: Hackathon MVP profile
+
+```bash
+python -m src.evaluate --config configs/sih_mvp.yaml --tag sih_mvp --sih-plots
+```
+
+`configs/sih_mvp.yaml` is the current pipeline (lever-arm NHC with turn gating, MotionNet at 10 Hz,
+map proxy). Pre-blackout GNSS comes from the car's reference receiver. The IO-VNBD phone GPS lags the
+IMU by seconds, and latency compensation is deferred to the real-world phase. **Inside every blackout
+no GNSS of any kind is used.**
+
+Held-out test drives S1 and M, 36 blackouts, full system D (median drift % of distance):
+
+| Blackout | 30 s | 60 s | 120 s |
+|---|---|---|---|
+| Hackathon MVP | 17.0% | **9.9% (< 10%)** | 21.3% |
+| Raw inertial integration (baseline) | 80.3% | 107.4% | 171.4% |
+
+Submission figures (300 dpi), in `results/sih/`:
+- `sih_overview_S1_sih_mvp.png`, `sih_overview_M_sih_mvp.png`: the full ground-truth track
+  (V-dataset) with every 60 s blackout, ground truth vs MVP estimate, labelled with drift per blackout.
+- `sih_panels_sih_mvp.png`: for each drive and blackout length, the **median-drift** window (not the
+  best one), comparing ground truth, the MVP and raw inertial integration.
+
+Read these numbers honestly:
+- **Only 60 s passes.** The 60 s median is 9.9% over 12 windows; 30 s and 120 s do not meet < 10%.
+- **These drives were seen during development.** The test drives were evaluated repeatedly while the
+  pipeline was built. Settings were chosen on validation drives, but an older configuration
+  (`pre-Step-1` in `src/ablation.py`) scores 10.9 / 7.8 / 11.6% on the same windows.
+- **Accelerometer-free speed was tried and rejected.** MotionNet-only speed during blackouts
+  (`filter.dr_accel_mode: decouple`) was worse on validation (25 / 19 / 20% vs 18 / 19 / 14%) and on
+  test (60 s: 12.8%), so the MVP keeps the accelerometer.
+- **Phone GPS is much worse.** With the phone's own GPS before the blackout, the same pipeline gives
+  about 34 / 21 / 50%.
+
 ## Quick start
 
 ```bash

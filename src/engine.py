@@ -61,6 +61,9 @@ class NavigationEngine:
         self.variant = variant
         self.pre = ImuPreprocessor(alignment, cfg, rate_hz, variant.preprocess)
         self.ekf = EKF2D(cfg, estimate_bias=variant.estimate_bias)
+        # the GNSS-denied accelerometer decoupling only makes sense with a MotionNet
+        # speed source; baselines A/B always integrate the accelerometer
+        self.ekf.allow_speed_decoupling = variant.use_motion
         self.model = motion_model if variant.use_motion else None
         self.matcher = matcher if variant.use_map else None
         if self.matcher is not None:

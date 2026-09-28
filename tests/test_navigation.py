@@ -402,6 +402,6 @@ def test_config_profile_inherits_base():
     from src.config import load_config
     c = load_config("configs/sih_mvp.yaml")
     b = load_config()
-    assert c["data"]["gnss_source"] == "vehicle" and c["filter"]["dr_accel_mode"] == "decouple"
+    assert c["data"]["gnss_source"] == "vehicle" and c["filter"]["dr_accel_mode"] in ("normal", "decouple", "inflate")
     assert c["filter"]["lever_arm_x"] == b["filter"]["lever_arm_x"]    # everything else from base
     assert c["split"] == b["split"]

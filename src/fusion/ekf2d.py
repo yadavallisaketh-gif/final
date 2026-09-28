@@ -122,6 +122,8 @@ class EKF2D:
         #              and a manoeuvre-dependent bias that pre-blackout b_a cannot capture)
         #   inflate  - integrate it but multiply its process noise by dr_accel_inflation
         accel_mode = self.fc.get("dr_accel_mode", "normal") if self.denied else "normal"
+        if accel_mode != "normal" and not getattr(self, "allow_speed_decoupling", True):
+            accel_mode = "normal"
         if accel_mode == "decouple":
             af = 0.0
         c, s = np.cos(yaw), np.sin(yaw)
