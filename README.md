@@ -39,6 +39,9 @@ Submission figures (300 dpi), in `results/sih/`:
 
 ![MVP median-drift windows](results/sih/sih_panels_sih_mvp.png)
 
+The full technical report on scope, architecture and limitations is in
+[`docs/DETAILED_MVP_REPORT.md`](docs/DETAILED_MVP_REPORT.md).
+
 Reproduce the numbers and figures:
 
 ```bash
@@ -223,6 +226,7 @@ archive_experiments/        historical experiments: ablations, tuning sweep, fai
 src/demo_replay.py           90-second judge demo
 tests/                       leakage, timestamps, blackout, navigation, map matching, splits
 results/                     metrics, plots and model from the reported run
+docs/DETAILED_MVP_REPORT.md  MVP technical report: scope, architecture, verified metrics, limitations
 docs/android_integration.md  SensorManager / Location → SensorSample plan
 src/ui/app.py, src/ui/sim.py Streamlit replay dashboard (real engine, test drives)
 scripts/export_onnx.py       MotionNet -> ONNX for on-device inference, with parity check
