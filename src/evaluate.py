@@ -169,7 +169,7 @@ def anomaly_drive_pass(drive, windows, cfg) -> dict:
     events, km = [], 0.0
     for _, seg in df.groupby("session", sort=True):
         t = seg["t"].to_numpy()
-        km += float(np.sum(seg["ref_speed"].to_numpy()[1:] * np.diff(t))) / 1000.0
+        km += float(np.nansum(seg["ref_speed"].to_numpy()[1:] * np.diff(t))) / 1000.0
         det = AnomalyDetector(cfg, 1.0 / np.median(np.diff(t)))
         for ti, a, g in zip(t, seg[["ax", "ay", "az"]].to_numpy(), seg[["gx", "gy", "gz"]].to_numpy()):
             det.update(ti, a, g)
@@ -179,7 +179,7 @@ def anomaly_drive_pass(drive, windows, cfg) -> dict:
     return {"drive": drive.drive_id, "km": km,
             **{k: count(events, k) for k in ("shock", "transient", "slip")},
             **{f"{k}_blackout": count(in_blackout, k) for k in ("shock", "transient", "slip")},
-            "slips": [(round(e.t, 1), round(e.magnitude, 1)) for e in events if e.kind == "slip"]}
+            "slips": [(round(float(e.t), 1), round(float(e.magnitude), 1)) for e in events if e.kind == "slip"]}
 
 
 def print_anomaly_summary(passes: list[dict], df: pd.DataFrame, variant: str, cfg: dict):

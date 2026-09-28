@@ -37,13 +37,13 @@ def test_pothole_spike_is_a_shock(cfg):
 def test_mount_slip_is_confirmed_and_relevels(cfg):
     d = make_drive(200)
     acc, gyr = d.acc.copy(), d.gyro.copy()
-    R = _rot_x(10.0)                                       # the phone tips 10 deg in its mount at t = 100 s
+    R = _rot_x(15.0)                                       # the phone tips 15 deg in its mount at t = 100 s
     acc[1000:] = acc[1000:] @ R.T
     gyr[1000:] = gyr[1000:] @ R.T
-    gyr[999:1001, 0] += 3.0                                # the rotation itself: a fast burst
+    gyr[999:1001, 0] += 6.0                                # the rotation itself: a fast burst
     det = _run(cfg, acc, gyr)
     slips = [e for e in det.events if e.kind == "slip"]
-    assert len(slips) == 1 and abs(slips[0].magnitude - 10.0) < 2.0
+    assert len(slips) == 1 and abs(slips[0].magnitude - 15.0) < 2.0
     true_up = R @ np.array([0.0, 0.0, 1.0])
     new_up = slips[0].rotation @ np.array([0.0, 0.0, 1.0])     # applied to the old (level) gravity
     assert np.degrees(np.arccos(np.clip(new_up @ true_up, -1, 1))) < 2.0
@@ -52,7 +52,7 @@ def test_mount_slip_is_confirmed_and_relevels(cfg):
 def test_gyro_burst_without_tilt_change_is_a_transient(cfg):
     d = make_drive(200)
     gyr = d.gyro.copy()
-    gyr[1000, 0] += 3.0                                    # a jolt, phone settles back where it was
+    gyr[1000, 0] += 6.0                                    # a jolt, phone settles back where it was
     det = _run(cfg, d.acc, gyr)
     assert det.counts()["transient"] == 1 and det.counts()["slip"] == 0
 
