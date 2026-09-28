@@ -1,0 +1,7 @@
+data/
+outputs/
+!outputs/.gitkeep
+__pycache__/
+*.pyc
+.pytest_cache/
+*.part

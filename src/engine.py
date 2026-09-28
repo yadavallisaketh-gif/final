@@ -1,0 +1,191 @@
+"""Streaming navigation engine: SensorSample in, navigation state out.
+
+    source (ReplaySource / SyntheticSource / Android bridge)
+        -> ImuPreprocessor (causal)          Feature 1
+        -> EKF2D predict                      Feature 2B
+        -> GNSS updates        (only when a healthy fix is present)
+           or dead reckoning:  MotionNet speed (2A) + NHC + map (3)
+
+The engine never sees truth. It knows only whether the current sample carries
+a GNSS fix; during a simulated blackout the fixes were removed upstream by
+`blackout.apply_blackout`, and `gnss_enabled=False` additionally ignores any
+fix (live "tunnel" toggle).
+"""
+from __future__ import annotations
+
+import time
+from collections import deque
+from dataclasses import dataclass
+
+import numpy as np
+import pandas as pd
+
+from .constraints.map_match import MapMatcher
+from .constraints.nhc import apply_nhc
+from .fusion.ekf2d import EKF2D, VF, VL, X, Y, YAW
+from .models.motion_net import MotionModel
+from .preprocess import FEATURE_COLUMNS, Alignment, ImuPreprocessor
+from .sensors import SensorSample
+
+
+@dataclass(frozen=True)
+class Variant:
+    key: str
+    label: str
+    preprocess: str          # raw | filtered
+    estimate_bias: bool
+    use_motion: bool
+    use_nhc: bool
+    use_map: bool
+
+
+VARIANTS = {
+    "A": Variant("A", "A: Raw INS", "raw", False, False, False, False),
+    "B": Variant("B", "B: Filtered INS", "filtered", True, False, False, False),
+    "C": Variant("C", "C: ML + EKF", "filtered", True, True, False, False),
+    "C+NHC": Variant("C+NHC", "C+NHC: ML + EKF + NHC (no map)", "filtered", True, True, True, False),
+    "D": Variant("D", "D: ML + EKF + NHC + map", "filtered", True, True, True, True),
+}
+
+MODE_GNSS, MODE_DR, MODE_INIT = "GNSS+INS", "DEAD RECKONING", "WAITING FOR GNSS"
+
+
+class NavigationEngine:
+    def __init__(self, cfg: dict, alignment: Alignment, variant: Variant, rate_hz: float,
+                 motion_model: MotionModel | None = None, matcher: MapMatcher | None = None):
+        if variant.use_motion and motion_model is None:
+            raise ValueError(f"variant {variant.key} needs a MotionNet model")
+        if variant.use_map and matcher is None:
+            raise ValueError(f"variant {variant.key} needs a map matcher")
+        self.cfg, self.fc, self.mc = cfg, cfg["filter"], cfg["map"]
+        self.variant = variant
+        self.pre = ImuPreprocessor(alignment, cfg, rate_hz, variant.preprocess)
+        self.ekf = EKF2D(cfg, estimate_bias=variant.estimate_bias)
+        self.model = motion_model if variant.use_motion else None
+        self.matcher = matcher if variant.use_map else None
+        if self.matcher is not None:
+            self.matcher.reset()
+        self.gnss_enabled = True
+        self.initialised = False
+        self.n = 0
+        # MotionNet runs at its training rate (10 Hz); faster IMUs are block-averaged.
+        self.decim = max(int(round(rate_hz / 10.0)), 1)
+        self._acc_block: list[np.ndarray] = []
+        if self.model is not None:
+            self._cols = [FEATURE_COLUMNS.index(f) for f in self.model.features]
+            self.buffer: deque = deque(maxlen=self.model.window)
+        self._last_mode = MODE_INIT
+        self._reacq_t: float | None = None
+        self._rejects: dict[str, int] = {}
+        self._disp_offset = np.zeros(2)
+        self._last_fix_t = -np.inf
+        self.history: list[tuple] = []
+        self.step_time = 0.0
+
+    # ------------------------------------------------------------------ main step
+    def step(self, s: SensorSample) -> str:
+        t0 = time.perf_counter()
+        f = self.pre.process(s.acc, s.gyro)
+        a_f, a_l, w_u = f[0], f[1], f[5]
+        self._feed_model(f)
+        fix = s.gnss if self.gnss_enabled else None
+
+        if not self.initialised:
+            mode = MODE_INIT
+            if fix is not None and np.isfinite(fix.yaw) and np.isfinite(fix.speed) \
+                    and fix.speed >= self.fc["gnss_heading_min_speed"]:
+                self.ekf.initialise(s.t, fix.x, fix.y, fix.speed, fix.yaw, fix.pos_std)
+                self.initialised = True
+                self._last_fix_t = s.t
+                mode = MODE_GNSS
+            self._record(s.t, mode)
+            self.step_time += time.perf_counter() - t0
+            return mode
+
+        dt = s.t - self.ekf.t
+        self.ekf.predict(s.t, a_f, a_l, w_u)
+        if fix is not None:
+            mode = MODE_GNSS
+            before = self.ekf.s[[X, Y]].copy()
+            self._gnss_update(s.t, fix)
+            self._last_fix_t = s.t
+            # The filter may jump when GNSS returns; the displayed position eases onto it.
+            self._disp_offset -= self.ekf.s[[X, Y]] - before
+        elif s.t - self._last_fix_t <= self.fc["gnss_timeout_s"]:
+            mode = MODE_GNSS          # between fixes of a slower GNSS receiver
+        else:
+            mode = MODE_DR
+            self._dead_reckoning_updates(s.t)
+        if self.variant.use_nhc:
+            apply_nhc(self.ekf, self.fc["nhc_sigma"])
+        self._disp_offset *= np.exp(-max(dt, 0.0) / self.fc["display_blend_s"])
+        self._last_mode = mode
+        self._record(s.t, mode)
+        self.n += 1
+        self.step_time += time.perf_counter() - t0
+        return mode
+
+    def run(self, source) -> pd.DataFrame:
+        for s in source:
+            self.step(s)
+        return self.trajectory()
+
+    # ------------------------------------------------------------------ pieces
+    def _feed_model(self, f: np.ndarray):
+        if self.model is None:
+            return
+        self._acc_block.append(f)
+        if len(self._acc_block) >= self.decim:
+            self.buffer.append(np.mean(self._acc_block, axis=0)[self._cols])
+            self._acc_block = []
+
+    def _gnss_update(self, t: float, fix):
+        ekf, fc = self.ekf, self.fc
+        ekf.gnss_enabled = True
+        if self._last_mode == MODE_DR:      # GNSS just came back
+            self._reacq_t = t
+            self._rejects = {}
+        inflate = 1.0
+        if self._reacq_t is not None:       # re-anchor gradually instead of snapping
+            inflate = 1.0 + (fc["reacq_inflation"] - 1.0) * np.exp(-(t - self._reacq_t) / fc["reacq_tau_s"])
+        # Innovation gating protects against bad fixes. If a channel keeps being
+        # rejected, the *estimate* is the stale one: open its covariance and accept.
+        self._gated("pos", lambda: ekf.update_gnss_position(fix.x, fix.y, fix.pos_std, inflate), (X, Y), 100.0)
+        if np.isfinite(fix.speed):
+            self._gated("speed", lambda: ekf.update_gnss_speed(fix.speed, inflate), (VF, VL), 10.0)
+        if np.isfinite(fix.yaw) and np.isfinite(fix.speed) and fix.speed >= fc["gnss_heading_min_speed"]:
+            self._gated("yaw", lambda: ekf.update_gnss_heading(fix.yaw, inflate), (YAW,), np.pi / 2)
+
+    def _gated(self, name: str, update, states: tuple, reset_std: float):
+        if update():
+            self._rejects[name] = 0
+            return
+        self._rejects[name] = self._rejects.get(name, 0) + 1
+        if self._rejects[name] >= self.fc["reacq_force_after"]:
+            for i in states:
+                self.ekf.P[i, i] += reset_std ** 2
+            update()
+            self._rejects[name] = 0
+
+    def _dead_reckoning_updates(self, t: float):
+        ekf = self.ekf
+        ekf.gnss_enabled = False            # any GNSS update from here on raises
+        if self.model is not None and len(self.buffer) == self.model.window \
+                and self.n % max(self.fc["motion_every"] * self.decim, 1) == 0:
+            mu, sd = self.model.predict(np.asarray(self.buffer))
+            ekf.update_speed(mu, max(sd * self.fc["motion_sigma_scale"], self.fc["motion_sigma_floor"]))
+        if self.matcher is not None and self.n % max(self.mc["every"] * self.decim, 1) == 0:
+            m = self.matcher.match(ekf.s[X], ekf.s[Y], ekf.s[YAW], t)
+            if m is not None:
+                ekf.update_road(m.px, m.py, m.road_yaw, self.mc["sigma_across_m"],
+                                np.deg2rad(self.mc["heading_sigma_deg"]))
+
+    def _record(self, t: float, mode: str):
+        s = self.ekf.s
+        self.history.append((t, s[X], s[Y], s[VF], s[VL], s[YAW], float(np.sqrt(self.ekf.P[X, X] + self.ekf.P[Y, Y])),
+                             s[X] + self._disp_offset[0], s[Y] + self._disp_offset[1], mode, self.initialised))
+
+    def trajectory(self) -> pd.DataFrame:
+        """x, y: filter estimate (scored). disp_x, disp_y: smoothed position for the UI."""
+        return pd.DataFrame(self.history, columns=["t", "x", "y", "v_f", "v_l", "yaw", "pos_sigma",
+                                                   "disp_x", "disp_y", "mode", "init"])
