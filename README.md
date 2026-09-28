@@ -14,6 +14,10 @@ IO-VNBD replay / Android / external IMU  ──►  SensorSample stream
 
 ## Results (held-out test drives, run once after validation-only tuning)
 
+> **Historical run.** This section describes the pipeline *before* Step 1. Its files are archived in
+> `archive_experiments/results/pre_step1_test_run/`. The current Passenger Car MVP (60 s median drift 9.9%) is described in
+> "SIH screening submission" below. See `archive_experiments/README.md` for how the pipeline changed.
+
 36 simulated GNSS blackouts on drives never used for training or tuning: **S1** (an unseen drive of
 training driver A) and **M** (a driver who is not in the training set). Every variant replays the
 identical windows. Lower is better.
@@ -41,16 +45,16 @@ Over all 36 windows:
 - **Zero GNSS updates inside any blackout** (asserted on every run). `python -m src.audit leakage` passes all 10 checks.
 - **Runtime** is 0.65 ms per 10 Hz step for the full Python stack, i.e. more than 1,500 Hz on one CPU core.
 
-Per-window numbers are in `results/metrics/eval_windows_test.csv`. Plots are in `results/plots/`:
-`summary_test.png`, `traj_*` (trajectory plus error-vs-time) and `motionnet_gru_*`. When C+NHC and D coincide
+Per-window numbers are in `archive_experiments/results/pre_step1_test_run/metrics/eval_windows_test.csv`. Plots are in `archive_experiments/results/pre_step1_test_run/plots/`
+(`summary_test.png`, `traj_*`: trajectory plus error-vs-time) and `results/plots/motionnet_gru_*`. When C+NHC and D coincide
 (no road matched), the purple line is hidden under the blue one.
 
-![summary](results/plots/summary_test.png)
+![summary](archive_experiments/results/pre_step1_test_run/plots/summary_test.png)
 
 ### How the numbers were produced
 
 1. **Train.** MotionNet was trained on 30 drives. The window length (5 s vs 10 s) was chosen on the 3 validation drives.
-2. **Tune.** Filter and map settings were chosen on the validation drives only (`python -m src.tune`, `results/metrics/tuning_val.csv`): NHC σ 0.15 m/s, MotionNet σ ×1.0, across-road σ 8 m.
+2. **Tune.** Filter and map settings were chosen on the validation drives only (`python -m archive_experiments.tune`, `archive_experiments/results/tuning_val.csv`): NHC σ 0.15 m/s, MotionNet σ ×1.0, across-road σ 8 m.
 3. **Test.** The test drives were then evaluated in a single run with those settings.
 4. **Transparency note.** Development runs on the test drives exposed two *robustness bugs*: a divergence while circling a roundabout, and a wrong turn at junctions. Their fixes are generic and unit-tested, and they are listed in the change log below. The main accuracy gain came from the NHC fix, which was found and verified on the validation drives.
 
@@ -93,7 +97,7 @@ Read these numbers honestly:
 - **Only 60 s passes.** The 60 s median is 9.9% over 12 windows; 30 s and 120 s do not meet < 10%.
 - **These drives were seen during development.** The test drives were evaluated repeatedly while the
   pipeline was built. Settings were chosen on validation drives, but an older configuration
-  (`pre-Step-1` in `src/ablation.py`) scores 10.9 / 7.8 / 11.6% on the same windows.
+  (`pre-Step-1` in `archive_experiments/ablation.py`) scores 10.9 / 7.8 / 11.6% on the same windows.
 - **Accelerometer-free speed was tried and rejected.** MotionNet-only speed during blackouts
   (`filter.dr_accel_mode: decouple`) was worse on validation (25 / 19 / 20% vs 18 / 19 / 14%) and on
   test (60 s: 12.8%), so the MVP keeps the accelerometer.
@@ -153,7 +157,7 @@ python -m src.evaluate                       # blackout benchmark on the held-ou
 python -m src.audit leakage                  # pass/fail leakage checklist
 python -m src.demo_replay --drive S1 --t-start 2580 --duration 60 --speed 10   # judge demo
 python -m src.demo_replay --synthetic-200hz  # same engine, external 200 Hz IMU
-python -m src.tune                           # validation-only tuning sweep (optional)
+python -m archive_experiments.tune           # validation-only tuning sweep (historical, optional)
 python -m pytest -q                          # 51 unit tests, no dataset needed
 ```
 
@@ -186,7 +190,7 @@ Run `python -m src.audit schema --drive <id>` to reproduce every row of this tab
 | Reference channels only as labels | MotionNet target = reference speed at the **last** sample of the window. `assert_allowed_features` rejects anything named gnss/gps/ref/lat/lon/wheel/speed. |
 | NN predicts motion, not coordinates | MotionNet outputs forward speed plus log-variance. |
 | Map matching separate and switchable | `map.enabled`. Every result reports **C+NHC (no map)** next to **D (with map)**. |
-| Report failure honestly | Windows are chosen deterministically and evenly across each drive. None are dropped. Per-window CSVs are in `results/metrics/`. |
+| Report failure honestly | Windows are chosen deterministically and evenly across each drive. None are dropped. Per-window CSVs are in `results/sih/` (MVP) and `archive_experiments/results/`. |
 | Sensor-agnostic core | `sensors.SensorSource`. The same `NavigationEngine` runs IO-VNBD replay at 10 Hz and a synthetic IMU at 200 Hz (`tests/test_navigation.py`, `--synthetic-200hz`). |
 
 ## The three core features
@@ -234,7 +238,7 @@ src/metrics.py               endpoint error, drift %, ATE, speed RMSE, heading e
 src/train_motion.py          training + validation-based model selection + plots
 src/evaluate.py              blackout benchmark, trajectory / error plots, summary tables
 src/audit.py                 schema report + leakage checklist
-src/tune.py                  validation-only settings sweep
+archive_experiments/        historical experiments: ablations, tuning sweep, failed attempts (see its README)
 src/demo_replay.py           90-second judge demo
 tests/                       leakage, timestamps, blackout, navigation, map matching, splits
 results/                     metrics, plots and model from the reported run

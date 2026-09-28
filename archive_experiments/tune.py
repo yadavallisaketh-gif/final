@@ -13,12 +13,12 @@ import os
 
 import pandas as pd
 
-from .blackout import make_blackout_windows
-from .config import copy_config, load_config
-from .data_io import load_drive
-from .dataset import check_split
-from .evaluate import build_network, run_window
-from .models.motion_net import MotionModel
+from src.blackout import make_blackout_windows
+from src.config import copy_config, load_config
+from src.data_io import load_drive
+from src.dataset import check_split
+from src.evaluate import build_network, run_window
+from src.models.motion_net import MotionModel
 
 GRID = {
     "filter.nhc_sigma": [0.05, 0.15, 0.5],
