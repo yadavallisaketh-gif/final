@@ -123,6 +123,25 @@ Thresholds are in `configs/base.yaml: anomaly` and come from the training drives
   (60 s median 9.91% vs 9.90% without the detector; the 0.004-point difference comes from pre-blackout
   Q inflation). The detector is a robustness guard; it does not improve the headline number.
 
+## Passenger Car MVP dashboard and mobile model
+
+```bash
+pip install -r requirements.txt
+streamlit run src/ui/app.py            # interactive replay of a 60 s blackout on test drive S1 or M
+python scripts/export_onnx.py          # -> results/models/motionnet_mobile.onnx (+ .json sidecar)
+```
+
+- **Dashboard.** `src/ui/app.py` animates ground truth (green) against the IDR estimate (blue) for any of
+  the 12 held-out 60 s blackouts, with a live GNSS state indicator and speeds for EKF v_f, MotionNet and truth.
+  - Each replay runs the real engine through `src/ui/sim.py`, which reproduces `src.evaluate` window for
+    window (variant D, `sih_mvp` profile, passenger-car lever arm r_x = 1.8 m locked).
+  - The default window per drive is its median-drift window, not the best one.
+  - The street-map view needs internet for OpenStreetMap tiles; the default local-metres view works offline.
+- **Mobile model.** `motionnet_mobile.onnx` (74 KB, opset 17) has a fixed input of `(1, 50, 5)`: 5 s of
+  10 Hz features. Feature normalisation and the validation-calibrated σ scale are baked into the graph.
+  - Outputs: `speed` and `sigma` (m/s).
+  - The export script checks ONNX Runtime against PyTorch; the maximum difference is 4e-6 m/s.
+
 ## Quick start
 
 ```bash
@@ -220,6 +239,8 @@ src/demo_replay.py           90-second judge demo
 tests/                       leakage, timestamps, blackout, navigation, map matching, splits
 results/                     metrics, plots and model from the reported run
 docs/android_integration.md  SensorManager / Location → SensorSample plan
+src/ui/app.py, src/ui/sim.py Streamlit replay dashboard (real engine, test drives)
+scripts/export_onnx.py       MotionNet -> ONNX for on-device inference, with parity check
 ```
 
 ## Change log of fixes found by testing
