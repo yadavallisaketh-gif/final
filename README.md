@@ -12,7 +12,58 @@ IO-VNBD replay / Android / external IMU  ──►  SensorSample stream
                          ──►  position, speed, heading, mode (GNSS+INS / DEAD RECKONING)
 ```
 
-<!-- RESULTS -->
+## Results (held-out test drives, run once after validation-only tuning)
+
+36 simulated GNSS blackouts on drives never used for training or tuning: **S1** (an unseen drive of
+training driver A) and **M** (a driver who is not in the training set). Every variant replays the
+identical windows. Lower is better.
+
+**Median drift as % of distance travelled**
+
+| Blackout (mean distance) | A: Raw INS | B: Filtered INS | C: ML + EKF | C+NHC: no map | **D: full system** |
+|---|---|---|---|---|---|
+| 30 s (251 m) | 80.4% | 89.6% | 46.3% | 11.0% | **11.0%** |
+| 60 s (470 m) | 107.3% | 107.7% | 46.3% | 7.8% | **7.8%** |
+| 120 s (957 m) | 171.3% | 178.1% | 50.7% | 11.7% | **11.7%** |
+
+Over all 36 windows:
+
+| | A: Raw INS | C+NHC | **D: full system** |
+|---|---|---|---|
+| Mean drift | 165% | 15.4% | **12.3%** |
+| 90th-percentile drift | 294% | 28.3% | **25.3%** |
+| Worst window | 858% | 77.9% | **33.4%** |
+| Speed RMSE in blackout | 5.9 m/s | 1.8 m/s | **1.8 m/s** |
+
+- **D beats raw INS in all 36 of 36 windows.** The median endpoint error after 120 s / ~1 km is 99 m, against 1.45 km for raw INS.
+- **The map helps on the worst windows.** It changed the result by more than 1 point in 8 windows: 6 better, 2 worse. It cut the worst case from 78% to 33%.
+- **MotionNet alone** (IMU → speed, 18k parameters, 0.9 ms per call) has 3.07 m/s test RMSE and 2.09 m/s MAE. Validation RMSE is 5.71 m/s: validation includes driver E's noisier phone and faster roads.
+- **Zero GNSS updates inside any blackout** (asserted on every run). `python -m src.audit leakage` passes all 10 checks.
+- **Runtime** is 0.65 ms per 10 Hz step for the full Python stack, i.e. more than 1,500 Hz on one CPU core.
+
+Per-window numbers are in `results/metrics/eval_windows_test.csv`. Plots are in `results/plots/`:
+`summary_test.png`, `traj_*` (trajectory plus error-vs-time) and `motionnet_gru_*`. When C+NHC and D coincide
+(no road matched), the purple line is hidden under the blue one.
+
+![summary](results/plots/summary_test.png)
+
+### How the numbers were produced
+
+1. **Train.** MotionNet was trained on 30 drives. The window length (5 s vs 10 s) was chosen on the 3 validation drives.
+2. **Tune.** Filter and map settings were chosen on the validation drives only (`python -m src.tune`, `results/metrics/tuning_val.csv`): NHC σ 0.15 m/s, MotionNet σ ×1.0, across-road σ 8 m.
+3. **Test.** The test drives were then evaluated in a single run with those settings.
+4. **Transparency note.** Development runs on the test drives exposed two *robustness bugs*: a divergence while circling a roundabout, and a wrong turn at junctions. Their fixes are generic and unit-tested, and they are listed in the change log below. The main accuracy gain came from the NHC fix, which was found and verified on the validation drives.
+
+### Known limitations (honest list)
+
+- **Not yet at "a few percent" drift.** Median drift is 8–12%. The remaining error is mostly heading drift from the phone gyro and speed that 10 Hz phone data only weakly reveals. MotionNet under-predicts at motorway speeds (see `motionnet_gru_test_speed.png`).
+- **Map constraint uses a proxy, not OSM.** OSM was unreachable from the build machine, so the map is road geometry from the *training* drives' tracks. It can only help where a test route overlaps a training route. With a real OSM extract, pass `--set map.osm_path=...`.
+- **Test set is small.** It has two drives and two drivers (A, B), all in the Coventry area, from one IO-VNBD phone family. Driver E's phone (noisier gyro) is only in training and validation, where median drift is around 20%.
+- **GNSS before the blackout comes from the car's reference receiver**, time-aligned to the phone. The phone's own GPS lags by seconds in IO-VNBD. `--set data.gnss_source=phone` is supported, but that mode is not what the table reports.
+- **Phone remount mid-drive is not detected.** Alignment is fitted once from pre-blackout data.
+- **Label quality.** Labels exist only where the dataset's clock could be re-synchronised. Driver D (Y1) is excluded completely.
+
+
 
 ## Quick start
 
@@ -25,7 +76,8 @@ python -m src.evaluate                       # blackout benchmark on the held-ou
 python -m src.audit leakage                  # pass/fail leakage checklist
 python -m src.demo_replay --drive S1 --t-start 2580 --duration 60 --speed 10   # judge demo
 python -m src.demo_replay --synthetic-200hz  # same engine, external 200 Hz IMU
-python -m pytest -q                          # 50+ unit tests, no dataset needed
+python -m src.tune                           # validation-only tuning sweep (optional)
+python -m pytest -q                          # 51 unit tests, no dataset needed
 ```
 
 A trained model is checked in at `results/models/motionnet.pt`. To evaluate without training, copy it to
@@ -104,8 +156,40 @@ src/metrics.py               endpoint error, drift %, ATE, speed RMSE, heading e
 src/train_motion.py          training + validation-based model selection + plots
 src/evaluate.py              blackout benchmark, trajectory / error plots, summary tables
 src/audit.py                 schema report + leakage checklist
+src/tune.py                  validation-only settings sweep
 src/demo_replay.py           90-second judge demo
 tests/                       leakage, timestamps, blackout, navigation, map matching, splits
 results/                     metrics, plots and model from the reported run
 docs/android_integration.md  SensorManager / Location → SensorSample plan
 ```
+
+## Change log of fixes found by testing
+
+| Flaw | Found by | Fix |
+|---|---|---|
+| NHC update also changed forward speed (and position/heading) through filter correlations | validation-drive ablation | NHC may update lateral velocity only. Validation drift roughly halved. Regression test added. |
+| Filter diverged when the car circled continuously; gravity estimate absorbed centripetal acceleration | test-drive development run (M) | Level on stationary or straight-driving samples; recover when a GNSS channel is repeatedly gated out |
+| Map matcher took the wrong branch at junctions | trajectory plots | Skip updates when two differently-oriented roads score alike (unit test) |
+| Stop detection fires while moving smoothly | 200 Hz synthetic test | ZUPT only when the IMU stop detector **and** MotionNet agree |
+| UI marker teleports when GNSS returns | reacquisition metric | Displayed position eases onto the fix (largest step ≤ a few metres) |
+
+## Pre-submission checklist (playbook §18)
+
+| # | Check | Status |
+|---|---|---|
+| 01 | Every model input named and available during blackout | ✅ `a_f, a_l, a_u, w_u, w_h` from the phone IMU (`audit leakage` 3a) |
+| 02 | Split by complete drives | ✅ 30 / 3 / 2 drives, `check_split` |
+| 03 | Normalisation from training split only | ✅ stored in the checkpoint, audited |
+| 04 | Raw and filtered INS baselines saved | ✅ variants A and B in every result |
+| 05 | ML output is motion, not coordinates | ✅ speed + log-variance |
+| 06 | GNSS update programmatically disabled during blackout | ✅ masked input + `GnssDisabledError` + per-run assertion |
+| 07 | No wheel speed / odometry at inference | ✅ never loaded into the estimator schema |
+| 08 | Map matching off with one flag | ✅ `--set map.enabled=false`; C+NHC reported beside D |
+| 09 | NHC soft, not a hard rule | ✅ σ = 0.15 m/s pseudo-measurement |
+| 10 | Reported trajectories from unseen drives | ✅ S1, M |
+| 11 | Drift % shown and reproducible | ✅ `metrics.py`, `python -m src.evaluate` |
+| 12 | Model size and latency measured | ✅ 17,922 params, ~0.9 ms per call |
+| 13 | GNSS reacquisition gated and smoothed | ✅ χ² gate, R inflation, eased display |
+| 14 | Known failure cases documented | ✅ limitations above |
+| 15 | SensorSource abstraction | ✅ 10 Hz replay and 200 Hz synthetic through one engine |
+| 16 | README has exact commands | ✅ Quick start |

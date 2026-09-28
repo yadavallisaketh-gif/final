@@ -1,0 +1,126 @@
+{
+  "pass": true,
+  "checks": [
+    {
+      "check": "1a no drive in two splits",
+      "pass": true,
+      "detail": {
+        "train": 30,
+        "val": 3,
+        "test": 2
+      }
+    },
+    {
+      "check": "1b windows never span two drives/sessions",
+      "pass": true,
+      "detail": "62 windows checked"
+    },
+    {
+      "check": "2 normalisation fitted on training drives only",
+      "pass": true,
+      "detail": "fitted on training windows only"
+    },
+    {
+      "check": "2b model trained with the configured split",
+      "pass": true,
+      "detail": {
+        "train": 30,
+        "test": [
+          "S1",
+          "M"
+        ]
+      }
+    },
+    {
+      "check": "3a MotionNet inputs are IMU features only",
+      "pass": true,
+      "detail": [
+        "a_f",
+        "a_l",
+        "a_u",
+        "w_u",
+        "w_h"
+      ]
+    },
+    {
+      "check": "3b estimator input schema excludes reference/wheel/CAN columns",
+      "pass": true,
+      "detail": [
+        "t",
+        "session",
+        "ax",
+        "ay",
+        "az",
+        "gx",
+        "gy",
+        "gz",
+        "mx",
+        "my",
+        "mz",
+        "gnss_x",
+        "gnss_y",
+        "gnss_speed",
+        "gnss_yaw",
+        "gnss_std",
+        "gnss_healthy"
+      ]
+    },
+    {
+      "check": "3c forbidden-name guard active",
+      "pass": true,
+      "detail": [
+        "gnss",
+        "gps",
+        "ref_",
+        "lat",
+        "lon",
+        "wheel",
+        "odometry",
+        "can_",
+        "obd",
+        "speed"
+      ]
+    },
+    {
+      "check": "4 window label = last input sample (no future information)",
+      "pass": true,
+      "detail": "target index == newest input index"
+    },
+    {
+      "check": "5a GNSS masked in estimator input during blackout",
+      "pass": true,
+      "detail": "S1 300-330s"
+    },
+    {
+      "check": "5b zero GNSS updates inside blackout (all variants)",
+      "pass": true,
+      "detail": {
+        "A": {
+          "motionnet": 0,
+          "nhc": 0,
+          "map": 0
+        },
+        "B": {
+          "motionnet": 0,
+          "nhc": 0,
+          "map": 0
+        },
+        "C": {
+          "motionnet": 286,
+          "nhc": 0,
+          "map": 0
+        },
+        "C+NHC": {
+          "motionnet": 286,
+          "nhc": 300,
+          "map": 0
+        },
+        "D": {
+          "motionnet": 286,
+          "nhc": 300,
+          "map": 57
+        }
+      }
+    }
+  ]
+}
