@@ -132,21 +132,27 @@ the ablation tables, and the former headline results of the pre-Step-1 pipeline.
 
 ```bash
 pip install -r requirements.txt
-python -m src.download_data                  # 72 synchronised drives, ~430 MB, checksum-verified
+python -m src.download_data                  # ALL 72 drives, ~430 MB, checksum-verified (the map needs the training drives)
+python -m pytest -q                          # 73 unit tests, no dataset needed
+python -m src.evaluate --config configs/sih_mvp.yaml --tag sih_mvp --plots 0   # benchmark: 60 s median drift 9.91%
+streamlit run src/ui/app.py                  # replay dashboard
+```
+
+Optional:
+
+```bash
+python -m src.audit leakage --config configs/sih_mvp.yaml   # pass/fail leakage checklist (10 checks)
 python -m src.audit schema --drive S1        # column roles, units, timing and sync report
-python -m src.train_motion                   # MotionNet (GRU); --compare also trains a TCN
-python -m src.evaluate                       # blackout benchmark on the held-out drives
-python -m src.audit leakage                  # pass/fail leakage checklist
-python -m src.demo_replay --drive S1 --t-start 2580 --duration 60 --speed 10   # judge demo
+python -m src.demo_replay --drive S1 --t-start 2580 --duration 60 --speed 10   # terminal demo
 python -m src.demo_replay --synthetic-200hz  # same engine, external 200 Hz IMU
-python -m archive_experiments.tune           # validation-only tuning sweep (historical, optional)
-python -m pytest -q                          # 51 unit tests, no dataset needed
+python -m archive_experiments.tune           # validation-only tuning sweep (historical)
+python -m src.train_motion                   # retrain MotionNet - OVERWRITES results/models/motionnet.pt
 ```
 
 The trained MVP model is checked in at `results/models/motionnet.pt` (the config's `model.path`), so the
 dashboard and evaluation run without training. It was trained on the Step 1 features: validation RMSE 5.65 m/s,
-test RMSE 3.04 m/s. Running `python -m src.train_motion` overwrites it; training is seeded and reproduces it on a
-4-core CPU.
+test RMSE 3.04 m/s. Retraining is seeded and reproduced it exactly on a 4-core CPU; other hardware or library
+versions may give a slightly different model, so the benchmark should be checked with the committed one.
 Any config value can be overridden, for example `--set map.enabled=false` or `--set evaluate.durations_s=[30,60]`.
 
 ## What the dataset audit found (and why it matters)
