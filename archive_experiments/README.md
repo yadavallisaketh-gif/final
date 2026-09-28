@@ -50,7 +50,7 @@ Over all 36 windows:
 - **Runtime** is 0.65 ms per 10 Hz step for the full Python stack, i.e. more than 1,500 Hz on one CPU core.
 
 Per-window numbers are in `results/pre_step1_test_run/metrics/eval_windows_test.csv`. Plots are in `results/pre_step1_test_run/plots/`
-(`summary_test.png`, `traj_*`: trajectory plus error-vs-time) and `../results/plots/motionnet_gru_*`. When C+NHC and D coincide
+(`summary_test.png`, `traj_*`: trajectory plus error-vs-time) and `results/motionnet_v1/motionnet_gru_*` (the v1 model used by this run). When C+NHC and D coincide
 (no road matched), the purple line is hidden under the blue one.
 
 ![summary](results/pre_step1_test_run/plots/summary_test.png)
@@ -67,6 +67,7 @@ across-road σ 8 m. The test drives were then evaluated once with those settings
 | `results/ablations/*.csv` | Output of `ablation.py`, per window. `s2` = Step 2 study, `s3`/`s3b` = Step 3 and the σ_acc sweep; `val`/`test` × `vehicle`/`phone` GNSS. |
 | `tune.py`, `results/tuning_val.csv` | The original validation-only sweep for NHC σ, MotionNet σ and road σ (pre-Step-1): `python -m archive_experiments.tune`. |
 | `results/pre_step1_test_run/` | The first full test evaluation (pre-Step-1 pipeline): metrics, summary plot and trajectory plots. |
+| `models/motionnet_v1_pre_step1.pt`, `results/motionnet_v1/` | MotionNet v1, trained on the pre-Step-1 features (test RMSE 3.07 m/s). It was retrained as v2 (`results/models/motionnet.pt`) after Step 1 changed the levelling. `ablation.py` uses v1 for the `pre-Step-1` setting. |
 | `anomaly_detector_v1_hypersensitive.py`, `results/anomaly_v1/` | The first anomaly detector, recovered from commit `fb4e2f3`, with its config and test log. See below. |
 
 **Why anomaly v1 failed.** It confirmed "mount slips" from 1.0 rad/s gyro bursts (training p99) and a 3° shift of

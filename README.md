@@ -140,8 +140,10 @@ python -m archive_experiments.tune           # validation-only tuning sweep (his
 python -m pytest -q                          # 51 unit tests, no dataset needed
 ```
 
-A trained model is checked in at `results/models/motionnet.pt`. To evaluate without training, copy it to
-`outputs/models/`, or pass `--set model.path=results/models/motionnet.pt`.
+The trained MVP model is checked in at `results/models/motionnet.pt` (the config's `model.path`), so the
+dashboard and evaluation run without training. It was trained on the Step 1 features: validation RMSE 5.65 m/s,
+test RMSE 3.04 m/s. Running `python -m src.train_motion` overwrites it; training is seeded and reproduces it on a
+4-core CPU.
 Any config value can be overridden, for example `--set map.enabled=false` or `--set evaluate.durations_s=[30,60]`.
 
 ## What the dataset audit found (and why it matters)

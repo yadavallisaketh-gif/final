@@ -69,7 +69,7 @@ model:
   augment_noise: 0.0                # std of additive noise on normalised features (0 = off)
   augment_scale: 0.0                # per-window channel gain jitter
   nll_after_epoch: 4                # switch Huber -> Gaussian NLL (uncertainty) after this epoch
-  path: outputs/models/motionnet.pt
+  path: results/models/motionnet.pt
 
 filter:
   # continuous-time noise densities (Q = sigma^2 * dt): the same covariance growth

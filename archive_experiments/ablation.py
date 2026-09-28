@@ -29,7 +29,7 @@ SETTINGS = {
     # reproduces the pre-Step-1 filter as closely as the code allows (bisect reference)
     "pre-Step-1": {**STEP1, "preprocess.attitude": "static", "filter.zaru": False, "filter.bl_prior_sigma": 0.0,
                    "filter.sigma_bl_rw": 0.0, "filter.nhc_freeze_yaw": True,
-                   "model.path": "results/models/motionnet.pt"},
+                   "model.path": "archive_experiments/models/motionnet_v1_pre_step1.pt"},
     "Step 1 (as committed)": STEP1,
     "Step 2 (lever arm + gating, 10 Hz MotionNet)": STEP2,
     "Step 2 as specified (1 Hz, R inflated)": {**STEP2, "filter.motion_update_hz": 1.0, "filter.motion_err_tau_s": 6.7},
