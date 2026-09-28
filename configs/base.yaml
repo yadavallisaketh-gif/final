@@ -115,7 +115,13 @@ filter:
   # also runs while GNSS is healthy), then carried through it by its dynamics.
   # (A static scalar bias correction was removed: the bias is drive-dependent,
   # -3.19 .. +0.34 m/s across drives.)
-  motion_bias_state: true
+  # Off by default: on validation drives every b_v configuration tried (tau 4.7-600 s,
+  # sigma_b 3-5, white 0.25-1.0, sigma_acc 0.16-1.0) was worse than without it
+  # (best: 22.1% / 42.7% median drift vs 18.0% / 30.1%, car / phone GNSS). During a
+  # blackout MotionNet is the only speed observation, so its bias and the
+  # accelerometer-integrated speed error are both slow and cannot be separated; the
+  # filter then explains MotionNet's corrections as b_v and keeps its own speed.
+  motion_bias_state: false
   motion_bias_tau_s: 4.7            # s, Gauss-Markov correlation time (0 = random constant)
   motion_bias_sigma: 3.0            # m/s, stationary std of b_v (~ MotionNet error std)
   motion_white_frac: 0.25           # white part of the MotionNet error as a fraction of its predicted std
@@ -130,7 +136,8 @@ filter:
   # lateral acceleration carries ~13 deg misalignment leakage that looks like gyro
   # bias). The gyro bias is still NOT frozen: ZARU updates it at every stop.
   freeze_bias_in_dr: true
-  freeze_accel_bias_in_dr: true     # clamp b_a for every update while GNSS is denied (Step 3)
+  freeze_accel_bias_in_dr: false    # true: clamp b_a for *every* update while GNSS is denied
+                                    # (NHC/MotionNet/ZUPT already freeze it via freeze_bias_in_dr)
   display_blend_s: 3.0              # displayed position eases onto GNSS corrections over ~this time
 
 map:

@@ -23,6 +23,7 @@ from .models.motion_net import MotionModel
 
 NO_GATING = {"filter.nhc_turn_rate_ref": None, "filter.nhc_lat_acc_ref": None, "filter.nhc_max_yaw_rate": None}
 STEP2 = {"filter.motion_bias_state": False, "filter.freeze_accel_bias_in_dr": False}
+STEP3 = {"filter.motion_bias_state": True, "filter.freeze_accel_bias_in_dr": True}
 STEP1 = {**STEP2, "filter.lever_arm_x": 0.0, **NO_GATING, "filter.motion_update_hz": 10.0, "filter.motion_err_tau_s": 0}
 SETTINGS = {
     # reproduces the pre-Step-1 filter as closely as the code allows (bisect reference)
@@ -32,22 +33,22 @@ SETTINGS = {
     "Step 1 (as committed)": STEP1,
     "Step 2 (lever arm + gating, 10 Hz MotionNet)": STEP2,
     "Step 2 as specified (1 Hz, R inflated)": {**STEP2, "filter.motion_update_hz": 1.0, "filter.motion_err_tau_s": 6.7},
-    "Step 3 as specified (b_v, tau 4.7 s, b_a clamp)": {"filter.motion_bias_tau_s": 4.7},
-    "Step 3, tau 30 s": {"filter.motion_bias_tau_s": 30.0},
-    "Step 3, tau 120 s": {"filter.motion_bias_tau_s": 120.0},
-    "Step 3, tau 600 s": {"filter.motion_bias_tau_s": 600.0},
-    "Step 3, tau 120 s, no b_a clamp": {"filter.motion_bias_tau_s": 120.0, "filter.freeze_accel_bias_in_dr": False},
-    "Step 3, tau 120 s, white frac 0.5": {"filter.motion_bias_tau_s": 120.0, "filter.motion_white_frac": 0.5},
-    "Step 3, tau 120 s, sigma_b 5": {"filter.motion_bias_tau_s": 120.0, "filter.motion_bias_sigma": 5.0},
+    "Step 3 as specified (b_v, tau 4.7 s, b_a clamp)": {**STEP3, "filter.motion_bias_tau_s": 4.7},
+    "Step 3, tau 30 s": {**STEP3, "filter.motion_bias_tau_s": 30.0},
+    "Step 3, tau 120 s": {**STEP3, "filter.motion_bias_tau_s": 120.0},
+    "Step 3, tau 600 s": {**STEP3, "filter.motion_bias_tau_s": 600.0},
+    "Step 3, tau 120 s, no b_a clamp": {**STEP3, "filter.motion_bias_tau_s": 120.0, "filter.freeze_accel_bias_in_dr": False},
+    "Step 3, tau 120 s, white frac 0.5": {**STEP3, "filter.motion_bias_tau_s": 120.0, "filter.motion_white_frac": 0.5},
+    "Step 3, tau 120 s, sigma_b 5": {**STEP3, "filter.motion_bias_tau_s": 120.0, "filter.motion_bias_sigma": 5.0},
     # realistic accelerometer process noise: the forward-acceleration error is
     # maneuver-dependent (misalignment, scale), not a constant bias
     "Step 2, sigma_acc 0.5": {**STEP2, "filter.sigma_acc": 0.5},
     "Step 2, sigma_acc 1.0": {**STEP2, "filter.sigma_acc": 1.0},
-    "Step 3 tau 4.7 s, sigma_acc 0.5": {"filter.motion_bias_tau_s": 4.7, "filter.sigma_acc": 0.5},
-    "Step 3 tau 4.7 s, sigma_acc 1.0": {"filter.motion_bias_tau_s": 4.7, "filter.sigma_acc": 1.0},
-    "Step 3 tau 600 s, sigma_acc 1.0, white 1.0": {"filter.motion_bias_tau_s": 600.0, "filter.sigma_acc": 1.0,
+    "Step 3 tau 4.7 s, sigma_acc 0.5": {**STEP3, "filter.motion_bias_tau_s": 4.7, "filter.sigma_acc": 0.5},
+    "Step 3 tau 4.7 s, sigma_acc 1.0": {**STEP3, "filter.motion_bias_tau_s": 4.7, "filter.sigma_acc": 1.0},
+    "Step 3 tau 600 s, sigma_acc 1.0, white 1.0": {**STEP3, "filter.motion_bias_tau_s": 600.0, "filter.sigma_acc": 1.0,
                                                     "filter.motion_white_frac": 1.0},
-    "Step 3 tau 600 s, sigma_acc 1.0, white 0.5": {"filter.motion_bias_tau_s": 600.0, "filter.sigma_acc": 1.0,
+    "Step 3 tau 600 s, sigma_acc 1.0, white 0.5": {**STEP3, "filter.motion_bias_tau_s": 600.0, "filter.sigma_acc": 1.0,
                                                     "filter.motion_white_frac": 0.5},
 }
 
