@@ -24,7 +24,11 @@ def test_streaming_equals_block_preprocessing(cfg):
     al = fit_alignment(df, cfg)
     block = preprocess_frame(df, al, cfg).to_numpy()
     pre = ImuPreprocessor(al, cfg, 10.0)
-    stream = np.array([pre.process(a, g) for a, g in zip(df[["ax", "ay", "az"]].to_numpy(), df[["gx", "gy", "gz"]].to_numpy())])
+    stream = []
+    for a, g, v in zip(df[["ax", "ay", "az"]].to_numpy(), df[["gx", "gy", "gz"]].to_numpy(), df["gnss_speed"].to_numpy()):
+        pre.set_speed(v)                       # the engine feeds its speed estimate the same way
+        stream.append(pre.process(a, g))
+    stream = np.array(stream)
     assert np.allclose(block, stream, atol=1e-9)
 
 
@@ -52,18 +56,100 @@ def test_ekf_estimates_gyro_bias(cfg):
     assert abs(ekf.s[6] - bias) < 0.003
 
 
-def test_nhc_suppresses_lateral_drift(cfg):
+def test_nhc_suppresses_lateral_drift_without_inventing_a_turn(cfg):
+    """A lateral accelerometer error must be absorbed by b_l, not read as a gyro bias."""
     res = {}
     for use in (False, True):
         ekf = EKF2D(cfg)
         ekf.initialise(0.0, 0.0, 0.0, 10.0, 0.0)
         for k in range(1, 601):
-            ekf.predict(k * 0.1, 0.0, 0.3, 0.0)   # a biased lateral accelerometer
+            ekf.predict(k * 0.1, 0.0, 0.3, 0.0)   # a biased lateral accelerometer, straight road
             if use:
-                ekf.update_nhc(cfg["filter"]["nhc_sigma"])
-        res[use] = (abs(ekf.s[VL]), abs(ekf.s[1]))
+                ekf.update_nhc(cfg["filter"]["nhc_sigma"], cfg["filter"]["nhc_vertical_sigma"])
+        res[use] = (abs(ekf.s[VL]), abs(ekf.s[1]), abs(ekf.s[4]))
     assert res[True][0] < 0.2 * res[False][0]
     assert res[True][1] < 0.2 * res[False][1]
+    assert res[True][2] < np.deg2rad(10)          # no phantom turn
+
+
+def test_nhc_observes_gyro_bias_during_blackout(cfg):
+    """Straight drive with a biased gyro and no GNSS: NHC must pull b_g towards the truth."""
+    bias = 0.01
+    out = {}
+    for freeze in (True, False):
+        cfg["filter"]["freeze_bias_in_dr"] = freeze
+        ekf = EKF2D(cfg)
+        ekf.initialise(0.0, 0.0, 0.0, 5.0, 0.0)
+        v = 5.0
+        for k in range(1, 1201):                  # 120 s, speed varies 5..20 m/s
+            t = k * 0.1
+            a = 0.5 * np.cos(2 * np.pi * t / 60.0) * np.pi / 3
+            v += a * 0.1
+            ekf.predict(t, a, 0.0, bias)          # true yaw rate 0, gyro reads the bias
+            ekf.update_speed(v, 0.3)
+            ekf.update_nhc(cfg["filter"]["nhc_sigma"], cfg["filter"]["nhc_vertical_sigma"])
+        out[freeze] = (ekf.s[6], abs(ekf.s[4]))
+    assert out[True][0] == 0.0                     # frozen: never learns
+    assert out[False][0] > 0.3 * bias              # observable: learns a large part of it
+    assert out[False][1] < 0.7 * out[True][1]      # and the heading error is clearly smaller
+
+
+def test_zaru_estimates_gyro_bias_at_a_stop(cfg):
+    ekf = EKF2D(cfg)
+    ekf.initialise(0.0, 0.0, 0.0, 0.0, 0.0)
+    for k in range(1, 101):                        # 10 s standing still
+        ekf.predict(k * 0.1, 0.0, 0.0, 0.004)
+        ekf.update_zaru(0.004, cfg["filter"]["zaru_sigma"])
+    assert abs(ekf.s[6] - 0.004) < 0.001
+
+
+def test_process_noise_is_rate_invariant(cfg):
+    P = {}
+    for rate in (10.0, 200.0):
+        ekf = EKF2D(cfg)
+        ekf.initialise(0.0, 0.0, 0.0, 10.0, 0.0)
+        for k in range(1, int(rate * 5) + 1):
+            ekf.predict(k / rate, 0.0, 0.0, 0.0)
+        P[rate] = np.diag(ekf.P)
+    rel = np.abs(P[10.0] - P[200.0]) / np.maximum(P[10.0], 1e-12)
+    assert rel[[2, 3, 4, 6]].max() < 0.1, rel      # velocity, heading, gyro bias
+
+
+def test_nhc_information_is_rate_invariant(cfg):
+    """Engine scales NHC R with the rate: the lateral-velocity variance after 2 s matches."""
+    from src.preprocess import Alignment
+    var = {}
+    for rate in (10.0, 200.0):
+        al = Alignment(np.eye(3), 9.81, 0, 0, 1, 1, 1, 0)
+        eng = NavigationEngine(cfg, al, VARIANTS["B"].__class__(**{**VARIANTS["B"].__dict__, "use_nhc": True}), rate)
+        eng.ekf.initialise(0.0, 0.0, 0.0, 10.0, 0.0)
+        eng.initialised = True
+        eng._last_fix_t = -1e9
+        from src.sensors import SensorSample
+        for k in range(1, int(rate * 2) + 1):
+            eng.step(SensorSample(k / rate, np.array([0, 0, 9.81]), np.zeros(3)))
+        var[rate] = eng.ekf.P[3, 3]
+    assert abs(var[10.0] - var[200.0]) / var[10.0] < 0.25, var
+
+
+def test_filter_dimensions_through_a_full_cycle(cfg):
+    ekf = EKF2D(cfg)
+    ekf.initialise(0.0, 1.0, 2.0, 10.0, 0.3)
+    for k in range(1, 51):
+        ekf.predict(k * 0.1, 0.2, 0.1, 0.05, 0.02)
+        assert ekf.s.shape == (9,) and ekf.P.shape == (9, 9)
+    ekf.update_gnss_position(5.0, 3.0, 3.0)
+    ekf.update_gnss_speed(10.5)
+    ekf.update_gnss_heading(0.35)
+    ekf.update_speed(10.0, 1.0)
+    ekf.update_nhc(0.15, 0.3)
+    ekf.update_nhc(0.15)
+    ekf.update_zupt(0.2)
+    ekf.update_zaru(0.001, 0.003)
+    ekf.update_road(5.0, 3.0, 0.3, 8.0, np.deg2rad(6))
+    assert ekf.s.shape == (9,) and ekf.P.shape == (9, 9)
+    assert np.isfinite(ekf.P).all() and np.allclose(ekf.P, ekf.P.T, atol=1e-9)
+    assert np.linalg.eigvalsh(ekf.P).min() > -1e-9
 
 
 def test_engine_blackout_filtered_beats_raw_with_bias(cfg):
@@ -116,12 +202,42 @@ def test_reacquisition_is_gradual(cfg):
     assert m["reacq_time_to_5m_s"] < 20
 
 
-def test_nhc_never_changes_forward_speed_or_heading(cfg):
+def test_nhc_never_changes_position_or_forward_speed(cfg):
     ekf = EKF2D(cfg)
     ekf.initialise(0.0, 0.0, 0.0, 12.0, 0.3)
     for k in range(1, 51):                         # build up cross-correlations first
         ekf.predict(k * 0.1, 0.2, 0.5, 0.05)
-    vf, yaw, xy = ekf.s[2], ekf.s[4], ekf.s[:2].copy()
-    ekf.update_nhc(cfg["filter"]["nhc_sigma"])
-    assert ekf.s[2] == vf and ekf.s[4] == yaw and (ekf.s[:2] == xy).all()
+    vf, xy = ekf.s[2], ekf.s[:2].copy()
+    ekf.update_nhc(cfg["filter"]["nhc_sigma"], cfg["filter"]["nhc_vertical_sigma"])
+    assert ekf.s[2] == vf and (ekf.s[:2] == xy).all()
     assert abs(ekf.s[VL]) < 1.0
+
+
+def test_dynamic_attitude_removes_grade_leakage(cfg):
+    """Hills put g*sin(grade) on the forward axis; static levelling keeps it, dynamic tracking removes most."""
+    d = make_drive(600, grade_amp=0.05, mount_yaw_deg=30.0, acc_noise=0.02, gyro_noise=0.0005)
+    df = to_frame(d)
+    true_af = np.gradient(d.speed, d.t)
+    err = {}
+    for mode, gyro in (("static", False), ("dynamic", True)):   # synthetic data is body-frame: gyro valid
+        cfg["preprocess"].update(attitude=mode, attitude_use_gyro=gyro, attitude_tau_s=30.0, attitude_acc_gate=0.15)
+        al = fit_alignment(df.query("t < 300"), cfg)
+        f = preprocess_frame(df, al, cfg)
+        e = (f["a_f"].to_numpy() - true_af)[3000:]          # evaluate on the second half
+        err[mode] = float(np.sqrt(np.mean(e ** 2)))
+    assert err["static"] > 0.25                           # ~g * 5 % / sqrt(2) leaks without tracking
+    # The floor is physical: a slow hill and a slow acceleration look alike to
+    # the accelerometer, so the correction cannot remove all of it.
+    assert err["dynamic"] < 0.8 * err["static"], err
+
+
+def test_attitude_filter_tracks_pitch_with_gyro(cfg):
+    """Pure rotation, no linear acceleration: gyro propagation follows the pitch exactly."""
+    from src.preprocess import AttitudeFilter
+    cfg["preprocess"].update(attitude_use_gyro=True, attitude_tau_s=1e9)
+    att = AttitudeFilter(np.array([0.0, 0.0, 1.0]), 9.81, cfg)
+    dt, theta = 0.01, 0.0
+    for k in range(1000):                                 # pitch up at 0.05 rad/s for 10 s
+        theta += 0.05 * dt
+        g = att.step(9.81 * np.array([np.sin(theta), 0, np.cos(theta)]), np.array([0.0, -0.05, 0.0]), dt)
+    assert abs(np.arctan2(g[0], g[2]) - theta) < 1e-3

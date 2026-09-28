@@ -38,6 +38,14 @@ split:                              # by complete drive, never by row
   test: [S1, M]                     # S1: unseen drive of a training driver (A); M: unseen driver (B)
 
 preprocess:
+  attitude: dynamic                 # dynamic: per-sample pitch/roll tracking; static: one fixed levelling
+  attitude_tau_s: 30.0              # accelerometer correction time constant
+  attitude_acc_gate: 0.6            # m/s^2: correct only while the specific force perpendicular to gravity is below this
+  # Gyro propagation is correct for a body-frame phone (live Android, synthetic
+  # tests) but NOT for IO-VNBD: its accelerometer is already Earth-levelled by the
+  # logger and its horizontal gyro axes do not match that frame. On validation
+  # drives it made forward-acceleration leakage 4-12x worse, so it is off here.
+  attitude_use_gyro: false
   lowpass_hz: 2.0                   # causal 2nd-order Butterworth; keeps braking/turn dynamics
   acc_clip: 12.0                    # m/s^2, per-axis spike clipping (vehicle frame, gravity removed)
   gyro_clip: 2.5                    # rad/s
@@ -64,10 +72,16 @@ model:
   path: outputs/models/motionnet.pt
 
 filter:
-  sigma_acc: 0.5                    # m/s^2 process noise on vehicle-frame acceleration
-  sigma_gyro: 0.02                  # rad/s process noise on yaw rate
+  # continuous-time noise densities (Q = sigma^2 * dt): the same covariance growth
+  # per second at 10 Hz and at 200 Hz. 0.16 / 0.0063 reproduce the previous
+  # (sigma*dt)^2 tuning exactly at 10 Hz.
+  sigma_acc: 0.16                   # m/s^2/sqrt(s) on vehicle-frame acceleration
+  sigma_gyro: 0.0063                # rad/s/sqrt(s) on yaw rate
   sigma_ba_rw: 0.005                # accel bias random walk (m/s^2/sqrt(s))
   sigma_bg_rw: 0.0005               # gyro bias random walk (rad/s/sqrt(s))
+  sigma_bl_rw: 0.01                 # lateral accel bias random walk (m/s^2/sqrt(s))
+  bg_prior_sigma: 0.005             # rad/s gyro bias uncertainty at initialisation
+  bl_prior_sigma: 0.2               # m/s^2 lateral accel bias (mount misalignment) at initialisation
   gnss_pos_sigma: 3.0               # m
   gnss_speed_sigma: 0.3             # m/s
   gnss_heading_sigma_deg: 3.0
@@ -77,15 +91,18 @@ filter:
   reacq_inflation: 25.0             # R multiplier right after GNSS returns ...
   reacq_tau_s: 3.0                  # ... decaying with this time constant
   reacq_force_after: 5              # accept GNSS after this many consecutive gated rejections
-  nhc_sigma: 0.15                   # m/s soft lateral-velocity constraint (motorcycles: ~1.0)
+  nhc_sigma: 0.15                   # m/s soft lateral-velocity constraint at 10 Hz (motorcycles: ~1.0)
+  nhc_vertical_sigma: 0.3           # m/s soft vertical-velocity constraint at 10 Hz
   motion_sigma_floor: 0.3           # m/s minimum MotionNet pseudo-measurement std
   motion_sigma_scale: 1.0           # scale on predicted std (tuned on validation drives: src.tune)
   motion_every: 1                   # run MotionNet every N IMU samples at 10 Hz
   zupt: true                        # zero-velocity update when the IMU says "stopped" (with the NHC stage)
   zupt_min_still_s: 2.0             # the stop must persist this long ...
   zupt_max_motion_speed: 2.0        # ... and MotionNet must agree (m/s), guarding against false stops
-  zupt_sigma: 0.2                   # m/s, soft
-  freeze_bias_in_dr: true           # NHC / MotionNet updates may not re-estimate IMU biases
+  zupt_sigma: 0.2                   # m/s at 10 Hz, soft
+  zaru: true                        # zero angular-rate update while stopped -> gyro bias
+  zaru_sigma: 0.003                 # rad/s
+  freeze_bias_in_dr: false          # keep IMU biases observable during a blackout
   display_blend_s: 3.0              # displayed position eases onto GNSS corrections over ~this time
 
 map:
@@ -94,7 +111,9 @@ map:
   radius_m: 30.0
   sigma_across_m: 8.0               # tuned on validation drives
   heading_gate_deg: 35.0
-  heading_sigma_deg: 6.0
+  heading_sigma_deg: 6.0            # weak road-azimuth heading update ...
+  heading_min_streak: 3             # ... only after this many linked matches
+  heading_max_score: 2.0            # ... and with a match score at most this
   continuity_bonus: 1.5
   max_score: 6.0
   ambiguity_margin: 2.0             # skip when a differently-oriented road scores within this margin

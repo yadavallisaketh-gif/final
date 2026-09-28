@@ -1,19 +1,34 @@
 """Feature 2B - 2-D error-state style EKF for vehicle dead reckoning.
 
-State  s = [x, y, v_f, v_l, yaw, b_a, b_g]
+State  s = [x, y, v_f, v_l, yaw, b_a, b_g, v_u, b_l]
   x, y  position in local ENU (m)
   v_f   forward speed (m/s), v_l lateral speed (m/s, +left)
   yaw   heading, ENU counter-clockwise from East (rad)
   b_a   forward accelerometer bias (m/s^2), b_g yaw-rate gyro bias (rad/s)
+  v_u   vertical speed in the vehicle frame (m/s)
+  b_l   lateral accelerometer bias (m/s^2) - mostly mount-misalignment leakage
 
-This is the playbook's [x, y, v, yaw, b_a, b_g] plus an explicit lateral
-velocity so that the non-holonomic constraint (v_l ~ 0) is a real, testable
-measurement instead of being baked into the motion model.
+This is the playbook's [x, y, v, yaw, b_a, b_g] plus explicit lateral and
+vertical velocities, so that the non-holonomic constraints (v_l ~ 0, v_u ~ 0)
+are real measurements instead of being baked into the motion model.
 
-Propagation uses vehicle-frame acceleration (a_f, a_l) and yaw rate w:
-  x'   = v_f cos(yaw) - v_l sin(yaw)      v_f' = a_f - b_a + w v_l
-  y'   = v_f sin(yaw) + v_l cos(yaw)      v_l' = a_l - w v_f
-  yaw' = w - b_g   (w already bias-corrected inside the v terms)
+Propagation uses vehicle-frame acceleration (a_f, a_l, a_u, gravity already
+removed) and yaw rate w; with om = w - b_g:
+  x'   = v_f cos(yaw) - v_l sin(yaw)      v_f' = a_f - b_a + om v_l
+  y'   = v_f sin(yaw) + v_l cos(yaw)      v_l' = a_l - b_l - om v_f
+  yaw' = om                               v_u' = a_u
+
+Heading observability during a blackout: a gyro bias error d_bg makes the
+filter rotate the velocity vector, so v_l' picks up +d_bg * v_f. The lateral
+NHC innovation therefore carries information about b_g and yaw (d v_l / d b_g
+= v_f * dt in F); NHC updates are allowed to correct them. A lateral
+accelerometer error produces the same symptom, so it has its own state b_l:
+the filter separates the two by their priors and because only the gyro term
+scales with speed. Without b_l, a lateral accelerometer error is misread as a
+gyro bias and the estimate "turns" on a straight road.
+
+Process noise is continuous-time (Q = sigma^2 * dt, sigma in unit/sqrt(s)), so
+the covariance growth per second does not depend on the IMU rate.
 
 Every measurement update is logged with its source so a judge can check that
 no GNSS update happened during a blackout.
@@ -24,8 +39,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
-X, Y, VF, VL, YAW, BA, BG = range(7)
-N = 7
+X, Y, VF, VL, YAW, BA, BG, VU, BL = range(9)
+N = 9
 CHI2_999 = {1: 10.83, 2: 13.82}
 
 
@@ -53,9 +68,9 @@ class EKF2D:
         self.fc = fc
         self.estimate_bias = estimate_bias
         self.s = np.zeros(N)
-        self.P = np.diag([1e4, 1e4, 100.0, 1.0, 10.0, 0.1, 0.01])
+        self.P = np.diag([1e4, 1e4, 100.0, 1.0, 10.0, 0.1, 0.01, 1.0, 0.1])
         if not estimate_bias:
-            self.P[BA, BA] = self.P[BG, BG] = 0.0
+            self.P[BA, BA] = self.P[BG, BG] = self.P[BL, BL] = 0.0
         self.t = 0.0
         self.gnss_enabled = True
         self.log: list[UpdateRecord] = []
@@ -63,39 +78,44 @@ class EKF2D:
     # ------------------------------------------------------------------ init
     def initialise(self, t: float, x: float, y: float, speed: float, yaw: float, pos_std: float = 3.0):
         self.t = t
-        self.s[:] = [x, y, speed, 0.0, yaw, 0.0, 0.0]
-        self.P = np.diag([pos_std ** 2, pos_std ** 2, 1.0, 0.25, np.deg2rad(10) ** 2, 0.05 ** 2, 0.005 ** 2])
+        self.s[:] = [x, y, speed, 0.0, yaw, 0.0, 0.0, 0.0, 0.0]
+        self.P = np.diag([pos_std ** 2, pos_std ** 2, 1.0, 0.25, np.deg2rad(10) ** 2, 0.05 ** 2,
+                          self.fc["bg_prior_sigma"] ** 2, 0.25, self.fc["bl_prior_sigma"] ** 2])
         if not self.estimate_bias:
-            self.P[BA, BA] = self.P[BG, BG] = 0.0
+            self.P[BA, BA] = self.P[BG, BG] = self.P[BL, BL] = 0.0
 
     # ------------------------------------------------------------------ predict
-    def predict(self, t: float, a_f: float, a_l: float, w: float):
+    def predict(self, t: float, a_f: float, a_l: float, w: float, a_u: float = 0.0):
         dt = t - self.t
         self.t = t
         if dt <= 0:
             return
-        x, y, vf, vl, yaw, ba, bg = self.s
+        x, y, vf, vl, yaw, ba, bg, vu, bl = self.s
         om = w - bg
         af = a_f - ba
         c, s = np.cos(yaw), np.sin(yaw)
         self.s[X] += (vf * c - vl * s) * dt
         self.s[Y] += (vf * s + vl * c) * dt
         self.s[VF] += (af + om * vl) * dt
-        self.s[VL] += (a_l - om * vf) * dt
+        self.s[VL] += (a_l - bl - om * vf) * dt
         self.s[YAW] = wrap(yaw + om * dt)
+        self.s[VU] += a_u * dt
 
         F = np.eye(N)
         F[X, VF], F[X, VL], F[X, YAW] = c * dt, -s * dt, (-vf * s - vl * c) * dt
         F[Y, VF], F[Y, VL], F[Y, YAW] = s * dt, c * dt, (vf * c - vl * s) * dt
         F[VF, VL], F[VF, BA], F[VF, BG] = om * dt, -dt, -vl * dt
-        F[VL, VF], F[VL, BG] = -om * dt, vf * dt
+        F[VL, VF], F[VL, BG], F[VL, BL] = -om * dt, vf * dt, -dt
         F[YAW, BG] = -dt
+        # Continuous-time white-noise model: variance grows linearly with time,
+        # independent of how finely the interval is sampled.
         fc = self.fc
-        q = np.array([0.0, 0.0, (fc["sigma_acc"] * dt) ** 2, (fc["sigma_acc"] * dt) ** 2,
-                      (fc["sigma_gyro"] * dt) ** 2, fc["sigma_ba_rw"] ** 2 * dt, fc["sigma_bg_rw"] ** 2 * dt])
+        q = np.array([0.0, 0.0, fc["sigma_acc"] ** 2 * dt, fc["sigma_acc"] ** 2 * dt,
+                      fc["sigma_gyro"] ** 2 * dt, fc["sigma_ba_rw"] ** 2 * dt, fc["sigma_bg_rw"] ** 2 * dt,
+                      fc["sigma_acc"] ** 2 * dt, fc["sigma_bl_rw"] ** 2 * dt])
         if not self.estimate_bias:
-            F[VF, BA] = F[VF, BG] = F[VL, BG] = F[YAW, BG] = 0.0
-            q[BA] = q[BG] = 0.0
+            F[VF, BA] = F[VF, BG] = F[VL, BG] = F[YAW, BG] = F[VL, BL] = 0.0
+            q[BA] = q[BG] = q[BL] = 0.0
         self.P = F @ self.P @ F.T + np.diag(q)
 
     # ------------------------------------------------------------------ update core
@@ -118,7 +138,7 @@ class EKF2D:
         I_KH = np.eye(N) - K @ H
         self.P = I_KH @ self.P @ I_KH.T + K @ R @ K.T   # Joseph form
         if not self.estimate_bias:
-            self.s[BA] = self.s[BG] = 0.0
+            self.s[BA] = self.s[BG] = self.s[BL] = 0.0
         self.log.append(UpdateRecord(self.t, source, True, nis))
         return True
 
@@ -150,29 +170,51 @@ class EKF2D:
                             np.array([[sig ** 2 * inflate]]), CHI2_999[1])
 
     # ------------------------------------------------------------------ pseudo-measurements
+    def _dr_frozen(self, *always: int) -> tuple:
+        """States a dead-reckoning pseudo-measurement must not touch.
+
+        `always` are frozen unconditionally (e.g. NHC may never move position or
+        forward speed). The IMU biases are frozen only when
+        filter.freeze_bias_in_dr is set; by default they stay observable.
+        """
+        extra = (BA, BG, BL) if self.fc.get("freeze_bias_in_dr", False) else ()
+        return tuple(sorted(set(always) | set(extra)))
+
     def update_speed(self, speed: float, std: float, source: str = "motionnet") -> bool:
         H = np.zeros((1, N))
         H[0, VF] = 1.0
-        frozen = (BA, BG) if self.fc.get("freeze_bias_in_dr", True) else ()
-        return self._update(source, np.array([speed - self.s[VF]]), H, np.array([[std ** 2]]), 30.0, frozen)
+        return self._update(source, np.array([speed - self.s[VF]]), H, np.array([[std ** 2]]), 30.0,
+                            self._dr_frozen())
 
-    def update_nhc(self, std: float) -> bool:
-        H = np.zeros((1, N))
-        H[0, VL] = 1.0
-        # NHC talks about sideways velocity only. Letting it move position, change
-        # forward speed, rotate the heading or re-estimate biases (through their
-        # correlations with v_l) turns a lateral accelerometer error into a phantom
-        # turn, offset or slowdown. On validation drives restricting it to v_l
-        # roughly halved blackout drift.
-        frozen = (X, Y, VF, YAW, BA, BG) if self.fc.get("freeze_bias_in_dr", True) else ()
-        return self._update("nhc", np.array([-self.s[VL]]), H, np.array([[std ** 2]]), None, frozen)
+    def update_nhc(self, std: float, std_vertical: float | None = None) -> bool:
+        """Soft non-holonomic constraint: v_l = 0 and (optionally) v_u = 0.
+
+        NHC may never move position or forward speed: through filter
+        correlations it would otherwise turn a lateral accelerometer error into
+        an offset or a slowdown (on validation drives that leak roughly doubled
+        drift). It *may* correct heading and gyro bias - the lateral velocity
+        innovation is exactly where a gyro bias shows up (see module docstring).
+        """
+        rows = [VL] if std_vertical is None else [VL, VU]
+        H = np.zeros((len(rows), N))
+        for i, r in enumerate(rows):
+            H[i, r] = 1.0
+        sig = [std] if std_vertical is None else [std, std_vertical]
+        return self._update("nhc", -self.s[rows], H, np.diag(np.square(sig)), None, self._dr_frozen(X, Y, VF))
 
     def update_zupt(self, std: float) -> bool:
         """Zero-velocity update while the IMU says the car is standing still."""
         H = np.zeros((2, N))
         H[0, VF] = H[1, VL] = 1.0
-        frozen = (X, Y, YAW, BA, BG) if self.fc.get("freeze_bias_in_dr", True) else ()
-        return self._update("zupt", -self.s[[VF, VL]], H, np.eye(2) * std ** 2, None, frozen)
+        return self._update("zupt", -self.s[[VF, VL]], H, np.eye(2) * std ** 2, None, self._dr_frozen(X, Y, YAW))
+
+    def update_zaru(self, gyro_rate: float, std: float) -> bool:
+        """Zero angular-rate update: a stopped car does not rotate, so the gyro's
+        reading (bias-uncorrected yaw rate) *is* the bias. Observes b_g directly."""
+        H = np.zeros((1, N))
+        H[0, BG] = 1.0
+        return self._update("zaru", np.array([gyro_rate - self.s[BG]]), H, np.array([[std ** 2]]), CHI2_999[1],
+                            (X, Y, VF, VL, YAW, BA, VU, BL))
 
     def update_road(self, px: float, py: float, road_yaw: float, sigma_across: float,
                     sigma_heading: float | None) -> bool:

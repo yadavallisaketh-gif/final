@@ -27,7 +27,7 @@ class SyntheticDrive:
 
 def make_drive(duration_s: float = 600.0, rate_hz: float = 10.0, seed: int = 0, mount_yaw_deg: float = 35.0,
                gyro_bias: float = 0.0, acc_bias: float = 0.0, acc_noise: float = 0.05,
-               gyro_noise: float = 0.002) -> SyntheticDrive:
+               gyro_noise: float = 0.002, grade_amp: float = 0.0) -> SyntheticDrive:
     rng = np.random.default_rng(seed)
     dt = 1.0 / rate_hz
     t = np.arange(0, duration_s, dt)
@@ -50,12 +50,22 @@ def make_drive(duration_s: float = 600.0, rate_hz: float = 10.0, seed: int = 0, 
     a_f = np.gradient(speed, dt)
     a_l = speed * yaw_rate
     psi = np.deg2rad(mount_yaw_deg)
+    # road grade (hills): nose-up pitch theta puts +g sin(theta) on the forward
+    # accelerometer axis; the body pitches at theta' (omega_y = -theta' in FLU)
+    theta = np.arctan(grade_amp * np.sin(2 * np.pi * t / 120.0 + 0.7))
+    theta_rate = np.gradient(theta, dt)
+    f_f = a_f + 9.81 * np.sin(theta)
+    f_u = 9.81 * np.cos(theta)
     # vehicle -> phone: rotate horizontal by -psi (phone forward axis at +psi from vehicle forward)
     c, s = np.cos(psi), np.sin(psi)
-    ax = c * a_f + s * a_l + acc_bias
-    ay = -s * a_f + c * a_l
-    acc = np.c_[ax, ay, np.full(n, 9.81)]
-    gyro = np.c_[np.zeros(n), np.zeros(n), yaw_rate + gyro_bias]
+    ax = c * f_f + s * a_l + acc_bias
+    ay = -s * f_f + c * a_l
+    acc = np.c_[ax, ay, f_u]
+    # body rates: yawing about the *world* vertical while pitched is seen by the
+    # body as psi_dot * (sin(theta), 0, cos(theta)); the pitch rate is about -y
+    wx_body = np.sin(theta) * yaw_rate
+    wy_body = -theta_rate
+    gyro = np.c_[c * wx_body + s * wy_body, -s * wx_body + c * wy_body, np.cos(theta) * yaw_rate + gyro_bias]
     return SyntheticDrive(t, x, y, speed, (yaw + np.pi) % (2 * np.pi) - np.pi, acc, gyro, psi, acc_noise, gyro_noise)
 
 

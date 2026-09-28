@@ -70,6 +70,9 @@ class NavigationEngine:
         self.n = 0
         # MotionNet runs at its training rate (10 Hz); faster IMUs are block-averaged.
         self.decim = max(int(round(rate_hz / 10.0)), 1)
+        # NHC / ZUPT are applied every IMU sample. Their sigmas are specified for
+        # 10 Hz; scaling R with the rate keeps the information per second fixed.
+        self.pseudo_scale = float(np.sqrt(rate_hz / 10.0))
         self._acc_block: list[np.ndarray] = []
         if self.model is not None:
             self._cols = [FEATURE_COLUMNS.index(f) for f in self.model.features]
@@ -83,6 +86,7 @@ class NavigationEngine:
         self._acc_n: deque = deque(maxlen=w)
         self._gyr_n: deque = deque(maxlen=w)
         self._still_since: float | None = None
+        self._w_raw: deque = deque(maxlen=w)       # bias-uncorrected yaw rate over the still window
         self._last_motion = np.inf
         self.history: list[tuple] = []
         self.step_time = 0.0
@@ -90,9 +94,13 @@ class NavigationEngine:
     # ------------------------------------------------------------------ main step
     def step(self, s: SensorSample) -> str:
         t0 = time.perf_counter()
+        # velocity aid for the attitude filter: the EKF's speed (GNSS-aided, or
+        # MotionNet-driven in a blackout); before initialisation, the raw fix
+        self.pre.set_speed(self.ekf.s[VF] if self.initialised else (s.gnss.speed if s.gnss is not None else np.nan))
         f = self.pre.process(s.acc, s.gyro)
         self._track_stationary(s)
-        a_f, a_l, w_u = f[0], f[1], f[5]
+        a_f, a_l, a_u, w_u = f[0], f[1], f[2], f[5]
+        self._w_raw.append(float(f[5]))
         self._feed_model(f)
         fix = s.gnss if self.gnss_enabled else None
 
@@ -109,7 +117,7 @@ class NavigationEngine:
             return mode
 
         dt = s.t - self.ekf.t
-        self.ekf.predict(s.t, a_f, a_l, w_u)
+        self.ekf.predict(s.t, a_f, a_l, w_u, a_u)
         if fix is not None:
             mode = MODE_GNSS
             before = self.ekf.s[[X, Y]].copy()
@@ -123,7 +131,8 @@ class NavigationEngine:
             mode = MODE_DR
             self._dead_reckoning_updates(s.t)
         if self.variant.use_nhc:
-            apply_nhc(self.ekf, self.fc["nhc_sigma"])
+            apply_nhc(self.ekf, self.fc["nhc_sigma"] * self.pseudo_scale,
+                      self.fc["nhc_vertical_sigma"] * self.pseudo_scale)
         self._disp_offset *= np.exp(-max(dt, 0.0) / self.fc["display_blend_s"])
         self._last_mode = mode
         self._record(s.t, mode)
@@ -203,12 +212,19 @@ class NavigationEngine:
             self._last_motion = mu
             ekf.update_speed(mu, max(sd * self.fc["motion_sigma_scale"], self.fc["motion_sigma_floor"]))
         if self.variant.use_nhc and self.fc["zupt"] and self._is_stopped(t):
-            ekf.update_zupt(self.fc["zupt_sigma"])
+            ekf.update_zupt(self.fc["zupt_sigma"] * self.pseudo_scale)
+            if self.fc["zaru"] and self.variant.estimate_bias and self.n % self.decim == 0:
+                # the preprocessor already removed the calibration bias; add it back
+                w_meas = float(np.mean(self._w_raw)) + float(self.pre.al.gyro_bias[2])
+                ekf.update_zaru(w_meas, self.fc["zaru_sigma"])
         if self.matcher is not None and self.n % max(self.mc["every"] * self.decim, 1) == 0:
             m = self.matcher.match(ekf.s[X], ekf.s[Y], ekf.s[YAW], t)
             if m is not None:
+                # Road azimuth is only trusted as a (weak) heading measurement for a
+                # confident match: several linked matches in a row and a low score.
+                confident = m.streak >= self.mc["heading_min_streak"] and m.score <= self.mc["heading_max_score"]
                 ekf.update_road(m.px, m.py, m.road_yaw, self.mc["sigma_across_m"],
-                                np.deg2rad(self.mc["heading_sigma_deg"]))
+                                np.deg2rad(self.mc["heading_sigma_deg"]) if confident else None)
 
     def _record(self, t: float, mode: str):
         s = self.ekf.s

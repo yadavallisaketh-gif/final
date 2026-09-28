@@ -37,6 +37,7 @@ class MatchResult:
     distance: float
     heading_error: float    # rad
     score: float
+    streak: int = 1         # consecutive matches on the same or a connected segment
 
 
 class RoadNetwork:
@@ -187,20 +188,24 @@ class MapMatcher:
         self.ambiguity_margin = mc.get("ambiguity_margin", 2.0)
         self.branch_angle = np.deg2rad(mc.get("branch_angle_deg", 20.0))
         self.prev: int | None = None
+        self.streak = 0
         self.decisions: list[dict] = []
 
     def reset(self):
         self.prev = None
+        self.streak = 0
 
     def match(self, x: float, y: float, yaw: float, t: float = 0.0) -> MatchResult | None:
         idx = self.net.candidates(x, y, self.radius)
         if len(idx) == 0:
             self.prev = None
+            self.streak = 0
             return None
         p, dist = self.net.project(idx, x, y)
         near = dist <= self.radius
         if not near.any():
             self.prev = None
+            self.streak = 0
             return None
         idx, p, dist = idx[near], p[near], dist[near]
         seg_yaw = self.net.yaw[idx]
@@ -218,6 +223,7 @@ class MapMatcher:
         if not np.isfinite(score[k]) or score[k] > self.max_score:
             self.decisions.append(dict(t=t, matched=False, candidates=int(len(idx))))
             self.prev = None
+            self.streak = 0
             return None
         # Junction ambiguity: another plausible road with a clearly different
         # direction scores almost as well -> do not guess, skip this update.
@@ -225,9 +231,12 @@ class MapMatcher:
         if (other & (score < score[k] + self.ambiguity_margin)).any():
             self.decisions.append(dict(t=t, matched=False, ambiguous=True, candidates=int(len(idx))))
             return None
-        self.prev = int(idx[k])
-        res = MatchResult(int(idx[k]), float(p[k, 0]), float(p[k, 1]), float(road_yaw[k]),
-                          float(dist[k]), float(herr[k]), float(score[k]))
+        k_seg = int(idx[k])
+        linked_prev = self.prev is not None and (k_seg == self.prev or k_seg in self.net.neighbours[self.prev])
+        self.streak = self.streak + 1 if linked_prev else 1
+        self.prev = k_seg
+        res = MatchResult(k_seg, float(p[k, 0]), float(p[k, 1]), float(road_yaw[k]),
+                          float(dist[k]), float(herr[k]), float(score[k]), self.streak)
         self.decisions.append(dict(t=t, matched=True, segment=res.segment, distance=round(res.distance, 1),
                                    heading_err_deg=round(float(np.degrees(res.heading_error)), 1)))
         return res
