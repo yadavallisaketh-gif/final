@@ -27,6 +27,9 @@ SETTINGS = {
     "new without ZARU": {"filter.zaru": False},
     "new with static levelling": {"preprocess.attitude": "static"},
     "new without vertical NHC": {"filter.nhc_vertical_sigma": 1e6},
+    "new, biases frozen": {"filter.freeze_bias_in_dr": True},
+    "new, map heading always": {"map.heading_min_streak": 0, "map.heading_max_score": 1e9},
+    "new, accel bias frozen (gyro bias observable)": {"filter.freeze_accel_bias_in_dr": True},
 }
 
 
@@ -35,6 +38,8 @@ def main(argv=None):
     ap.add_argument("--gnss", default="phone", choices=["phone", "vehicle"])
     ap.add_argument("--windows", type=int, default=3)
     ap.add_argument("--set", nargs="*", default=[])
+    ap.add_argument("--only", nargs="*", help="substrings of setting names to run")
+    ap.add_argument("--tag", default="")
     a = ap.parse_args(argv)
     base = load_config(None, a.set)
     base["data"]["gnss_source"] = a.gnss
@@ -45,6 +50,8 @@ def main(argv=None):
     nets = {d: build_network(base, dr.origin, set(split["val"]) | set(split["test"])) for d, dr in drives.items()}
     rows = []
     for name, ov in SETTINGS.items():
+        if a.only and not any(o in name for o in a.only):
+            continue
         cfg = copy_config(base, **ov)
         for d, drive in drives.items():
             for w in make_blackout_windows(d, drive.df, cfg):
@@ -54,7 +61,7 @@ def main(argv=None):
         print(name, df.groupby(["duration_s", "variant"])[["drift_percent", "heading_mae_deg", "heading_final_deg"]]
               .median().round(1).to_string(), sep="\n", flush=True)
     out = pd.DataFrame(rows)
-    path = os.path.join(base["evaluate"]["output_dir"], "metrics", f"ablation_val_{a.gnss}.csv")
+    path = os.path.join(base["evaluate"]["output_dir"], "metrics", f"ablation_val_{a.gnss}{a.tag}.csv")
     os.makedirs(os.path.dirname(path), exist_ok=True)
     out.to_csv(path, index=False)
     summ = out.groupby(["setting", "duration_s", "variant"])[["drift_percent", "heading_mae_deg", "heading_final_deg"]].median()

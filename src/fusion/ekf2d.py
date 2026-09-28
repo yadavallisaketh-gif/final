@@ -178,6 +178,8 @@ class EKF2D:
         filter.freeze_bias_in_dr is set; by default they stay observable.
         """
         extra = (BA, BG, BL) if self.fc.get("freeze_bias_in_dr", False) else ()
+        if self.fc.get("freeze_accel_bias_in_dr", False):
+            extra = tuple(set(extra) | {BA})
         return tuple(sorted(set(always) | set(extra)))
 
     def update_speed(self, speed: float, std: float, source: str = "motionnet") -> bool:
