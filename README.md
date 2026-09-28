@@ -115,6 +115,13 @@ Thresholds are in `configs/base.yaml: anomaly` and come from the training drives
   counted as a *transient* and handled like a shock.
 - `python -m src.evaluate` prints a per-drive summary of what was caught and how much of it fell inside
   blackouts. Each window row in the CSV also records `anom_shock`, `anom_transient` and `anom_slip`.
+- Thresholds come from 16.7 h of training driving. Ungated 1 s gravity estimates wander by > 17° 1% of
+  the time on normal roads. A first version that confirmed slips at 3° over such windows fired about
+  500 times per hour, and its re-levels raised the 60 s test median to 11.4%. It was replaced.
+- Held-out test drives S1 + M (143 km): 22 shocks and 1 transient were caught and suppressed, and no
+  mount slip was confirmed. None of them fell inside a blackout window, so the benchmark is unchanged
+  (60 s median 9.91% vs 9.90% without the detector; the 0.004-point difference comes from pre-blackout
+  Q inflation). The detector is a robustness guard; it does not improve the headline number.
 
 ## Quick start
 

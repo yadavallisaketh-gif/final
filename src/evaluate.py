@@ -200,9 +200,12 @@ def print_anomaly_summary(passes: list[dict], df: pd.DataFrame, variant: str, cf
     if "anom_shock" in df:
         d = df[df.variant == variant]
         hit = d[(d.anom_shock + d.anom_transient + d.anom_slip) > 0]
-        print(f"  {variant} windows with >=1 anomaly handled: {len(hit)}/{len(d)}; median drift "
-              f"{hit.drift_percent.median() if len(hit) else float('nan'):.1f}% vs "
-              f"{d.drop(hit.index).drift_percent.median():.1f}% for anomaly-free windows")
+        if len(hit):
+            print(f"  {variant} windows with >=1 anomaly handled: {len(hit)}/{len(d)}; median drift "
+                  f"{hit.drift_percent.median():.1f}% vs {d.drop(hit.index).drift_percent.median():.1f}% "
+                  f"for anomaly-free windows")
+        else:
+            print(f"  {variant} windows with >=1 anomaly handled: 0/{len(d)} (benchmark unaffected by the detector)")
 
 
 def main(argv=None):
