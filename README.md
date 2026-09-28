@@ -12,78 +12,22 @@ IO-VNBD replay / Android / external IMU  ──►  SensorSample stream
                          ──►  position, speed, heading, mode (GNSS+INS / DEAD RECKONING)
 ```
 
-## Results (held-out test drives, run once after validation-only tuning)
+## Results: Hackathon MVP (passenger car)
 
-> **Historical run.** This section describes the pipeline *before* Step 1. Its files are archived in
-> `archive_experiments/results/pre_step1_test_run/`. The current Passenger Car MVP (60 s median drift 9.9%) is described in
-> "SIH screening submission" below. See `archive_experiments/README.md` for how the pipeline changed.
-
-36 simulated GNSS blackouts on drives never used for training or tuning: **S1** (an unseen drive of
-training driver A) and **M** (a driver who is not in the training set). Every variant replays the
-identical windows. Lower is better.
-
-**Median drift as % of distance travelled**
-
-| Blackout (mean distance) | A: Raw INS | B: Filtered INS | C: ML + EKF | C+NHC: no map | **D: full system** |
-|---|---|---|---|---|---|
-| 30 s (251 m) | 80.4% | 89.6% | 46.3% | 11.0% | **11.0%** |
-| 60 s (470 m) | 107.3% | 107.7% | 46.3% | 7.8% | **7.8%** |
-| 120 s (957 m) | 171.3% | 178.1% | 50.7% | 11.7% | **11.7%** |
-
-Over all 36 windows:
-
-| | A: Raw INS | C+NHC | **D: full system** |
-|---|---|---|---|
-| Mean drift | 165% | 15.4% | **12.3%** |
-| 90th-percentile drift | 294% | 28.3% | **25.3%** |
-| Worst window | 858% | 77.9% | **33.4%** |
-| Speed RMSE in blackout | 5.9 m/s | 1.8 m/s | **1.8 m/s** |
-
-- **D beats raw INS in all 36 of 36 windows.** The median endpoint error after 120 s / ~1 km is 99 m, against 1.45 km for raw INS.
-- **The map helps on the worst windows.** It changed the result by more than 1 point in 8 windows: 6 better, 2 worse. It cut the worst case from 78% to 33%.
-- **MotionNet alone** (IMU → speed, 18k parameters, 0.9 ms per call) has 3.07 m/s test RMSE and 2.09 m/s MAE. Validation RMSE is 5.71 m/s: validation includes driver E's noisier phone and faster roads.
-- **Zero GNSS updates inside any blackout** (asserted on every run). `python -m src.audit leakage` passes all 10 checks.
-- **Runtime** is 0.65 ms per 10 Hz step for the full Python stack, i.e. more than 1,500 Hz on one CPU core.
-
-Per-window numbers are in `archive_experiments/results/pre_step1_test_run/metrics/eval_windows_test.csv`. Plots are in `archive_experiments/results/pre_step1_test_run/plots/`
-(`summary_test.png`, `traj_*`: trajectory plus error-vs-time) and `results/plots/motionnet_gru_*`. When C+NHC and D coincide
-(no road matched), the purple line is hidden under the blue one.
-
-![summary](archive_experiments/results/pre_step1_test_run/plots/summary_test.png)
-
-### How the numbers were produced
-
-1. **Train.** MotionNet was trained on 30 drives. The window length (5 s vs 10 s) was chosen on the 3 validation drives.
-2. **Tune.** Filter and map settings were chosen on the validation drives only (`python -m archive_experiments.tune`, `archive_experiments/results/tuning_val.csv`): NHC σ 0.15 m/s, MotionNet σ ×1.0, across-road σ 8 m.
-3. **Test.** The test drives were then evaluated in a single run with those settings.
-4. **Transparency note.** Development runs on the test drives exposed two *robustness bugs*: a divergence while circling a roundabout, and a wrong turn at junctions. Their fixes are generic and unit-tested, and they are listed in the change log below. The main accuracy gain came from the NHC fix, which was found and verified on the validation drives.
-
-### Known limitations (honest list)
-
-- **Not yet at "a few percent" drift.** Median drift is 8–12%. The remaining error is mostly heading drift from the phone gyro and speed that 10 Hz phone data only weakly reveals. MotionNet under-predicts at motorway speeds (see `motionnet_gru_test_speed.png`).
-- **Map constraint uses a proxy, not OSM.** OSM was unreachable from the build machine, so the map is road geometry from the *training* drives' tracks. It can only help where a test route overlaps a training route. With a real OSM extract, pass `--set map.osm_path=...`.
-- **Test set is small.** It has two drives and two drivers (A, B), all in the Coventry area, from one IO-VNBD phone family. Driver E's phone (noisier gyro) is only in training and validation, where median drift is around 20%.
-- **GNSS before the blackout comes from the car's reference receiver**, time-aligned to the phone. The phone's own GPS lags by seconds in IO-VNBD. `--set data.gnss_source=phone` is supported, but that mode is not what the table reports.
-- **Phone remount mid-drive is not detected.** Alignment is fitted once from pre-blackout data.
-- **Label quality.** Labels exist only where the dataset's clock could be re-synchronised. Driver D (Y1) is excluded completely.
-
-
-
-## SIH screening submission: Hackathon MVP profile
-
-```bash
-python -m src.evaluate --config configs/sih_mvp.yaml --tag sih_mvp --sih-plots
-```
+**60 s GNSS blackout: 9.9% median drift** on held-out test drives. See it replayed live with
+`streamlit run src/ui/app.py` (section below).
 
 `configs/sih_mvp.yaml` is the current pipeline (lever-arm NHC with turn gating, MotionNet at 10 Hz,
 map proxy). Pre-blackout GNSS comes from the car's reference receiver. The IO-VNBD phone GPS lags the
 IMU by seconds, and latency compensation is deferred to the real-world phase. **Inside every blackout
 no GNSS of any kind is used.**
 
-Held-out test drives S1 and M, 36 blackouts, full system D (median drift % of distance):
+Held-out test drives S1 (unseen drive of a training driver) and M (a driver not in training), 36 blackouts,
+full system D: MotionNet + EKF + lever-arm NHC + road proxy (median drift % of distance travelled):
 
 | Blackout | 30 s | 60 s | 120 s |
 |---|---|---|---|
+| Mean distance travelled | 251 m | 470 m | 957 m |
 | Hackathon MVP | 17.0% | **9.9% (< 10%)** | 21.3% |
 | Raw inertial integration (baseline) | 80.3% | 107.4% | 171.4% |
 
@@ -93,11 +37,20 @@ Submission figures (300 dpi), in `results/sih/`:
 - `sih_panels_sih_mvp.png`: for each drive and blackout length, the **median-drift** window (not the
   best one), comparing ground truth, the MVP and raw inertial integration.
 
+![MVP median-drift windows](results/sih/sih_panels_sih_mvp.png)
+
+Reproduce the numbers and figures:
+
+```bash
+python -m src.evaluate --config configs/sih_mvp.yaml --tag sih_mvp --sih-plots
+```
+
 Read these numbers honestly:
 - **Only 60 s passes.** The 60 s median is 9.9% over 12 windows; 30 s and 120 s do not meet < 10%.
 - **These drives were seen during development.** The test drives were evaluated repeatedly while the
   pipeline was built. Settings were chosen on validation drives, but an older configuration
-  (`pre-Step-1` in `archive_experiments/ablation.py`) scores 10.9 / 7.8 / 11.6% on the same windows.
+  (`pre-Step-1` in `archive_experiments/ablation.py`) scores 10.9 / 7.8 / 11.6% on the same windows. It was
+  worse on validation (23 / 25 / 21%) and relies on a fixed levelling, so it was not kept.
 - **Accelerometer-free speed was tried and rejected.** MotionNet-only speed during blackouts
   (`filter.dr_accel_mode: decouple`) was worse on validation (25 / 19 / 20% vs 18 / 19 / 14%) and on
   test (60 s: 12.8%), so the MVP keeps the accelerometer.
@@ -145,6 +98,32 @@ python scripts/export_onnx.py          # -> results/models/motionnet_mobile.onnx
   10 Hz features. Feature normalisation and the validation-calibrated σ scale are baked into the graph.
   - Outputs: `speed` and `sigma` (m/s).
   - The export script checks ONNX Runtime against PyTorch; the maximum difference is 4e-6 m/s.
+
+### How the numbers were produced
+
+1. **Train.** MotionNet was trained on 30 drives. The window length (5 s vs 10 s) was chosen on the 3 validation drives.
+2. **Choose.** Every pipeline change (Steps 1-3, the MVP profile, the anomaly detector) was compared on the
+   validation drives, and kept only if it helped there. The full ablation history, including the failed attempts, is in
+   [`archive_experiments/`](archive_experiments/README.md).
+3. **Test.** The held-out test drives S1 and M are reported with the chosen settings.
+4. **Transparency note.** Development runs on the test drives exposed two *robustness bugs*: a divergence while circling a roundabout, and a wrong turn at junctions. Their fixes are generic and unit-tested, and they are listed in the change log below.
+
+### Known limitations (honest list)
+
+- **Not yet at "a few percent" drift.** Median drift is 17 / 9.9 / 21% at 30 / 60 / 120 s; only 60 s meets < 10%. The remaining error is mostly heading drift from the phone gyro and speed that 10 Hz phone data only weakly reveals. MotionNet under-predicts at motorway speeds (see `motionnet_gru_test_speed.png`).
+- **Map constraint uses a proxy, not OSM.** OSM was unreachable from the build machine, so the map is road geometry from the *training* drives' tracks. It can only help where a test route overlaps a training route. With a real OSM extract, pass `--set map.osm_path=...`.
+- **Test set is small.** It has two drives and two drivers (A, B), all in the Coventry area, from one IO-VNBD phone family. Driver E's phone (noisier gyro) is only in training and validation, where median drift is around 20%.
+- **GNSS before the blackout comes from the car's reference receiver**, time-aligned to the phone. The phone's own GPS lags by seconds in IO-VNBD. `--set data.gnss_source=phone` is supported, but that mode is not what the table reports.
+- **Phone remount mid-drive is only partly handled.** The anomaly detector re-levels after a confirmed mount slip,
+  but no slip was confirmed on the real test drives; the phone→vehicle yaw is still fitted once, from pre-blackout data.
+- **Label quality.** Labels exist only where the dataset's clock could be re-synchronised. Driver D (Y1) is excluded completely.
+
+## Development history
+
+The pipeline went through a pre-Step-1 baseline, Steps 1-3, the MVP profile and two anomaly detectors. Several
+attempts failed: 1 Hz MotionNet, the MotionNet bias state, accelerometer decoupling, and the first anomaly detector.
+[`archive_experiments/README.md`](archive_experiments/README.md) has the timeline with validation and test numbers,
+the ablation tables, and the former headline results of the pre-Step-1 pipeline.
 
 ## Quick start
 

@@ -20,6 +20,45 @@ Settings were chosen on the validation drives; the test drives are shown for ref
 Caveat on pre-Step-1: it scores better on the test drives but worse on validation. It relied on a fixed
 levelling, which breaks when the phone moves, so it was not kept.
 
+## Pre-Step-1 test run (formerly the main README headline)
+
+36 simulated GNSS blackouts on drives never used for training or tuning: **S1** (an unseen drive of
+training driver A) and **M** (a driver who is not in the training set). Every variant replays the
+identical windows. Lower is better.
+
+**Median drift as % of distance travelled**
+
+| Blackout (mean distance) | A: Raw INS | B: Filtered INS | C: ML + EKF | C+NHC: no map | **D: full system** |
+|---|---|---|---|---|---|
+| 30 s (251 m) | 80.4% | 89.6% | 46.3% | 11.0% | **11.0%** |
+| 60 s (470 m) | 107.3% | 107.7% | 46.3% | 7.8% | **7.8%** |
+| 120 s (957 m) | 171.3% | 178.1% | 50.7% | 11.7% | **11.7%** |
+
+Over all 36 windows:
+
+| | A: Raw INS | C+NHC | **D: full system** |
+|---|---|---|---|
+| Mean drift | 165% | 15.4% | **12.3%** |
+| 90th-percentile drift | 294% | 28.3% | **25.3%** |
+| Worst window | 858% | 77.9% | **33.4%** |
+| Speed RMSE in blackout | 5.9 m/s | 1.8 m/s | **1.8 m/s** |
+
+- **D beats raw INS in all 36 of 36 windows.** The median endpoint error after 120 s / ~1 km is 99 m, against 1.45 km for raw INS.
+- **The map helps on the worst windows.** It changed the result by more than 1 point in 8 windows: 6 better, 2 worse. It cut the worst case from 78% to 33%.
+- **MotionNet alone** (IMU → speed, 18k parameters, 0.9 ms per call) has 3.07 m/s test RMSE and 2.09 m/s MAE. Validation RMSE is 5.71 m/s: validation includes driver E's noisier phone and faster roads.
+- **Zero GNSS updates inside any blackout** (asserted on every run). `python -m src.audit leakage` passed all 10 checks.
+- **Runtime** is 0.65 ms per 10 Hz step for the full Python stack, i.e. more than 1,500 Hz on one CPU core.
+
+Per-window numbers are in `results/pre_step1_test_run/metrics/eval_windows_test.csv`. Plots are in `results/pre_step1_test_run/plots/`
+(`summary_test.png`, `traj_*`: trajectory plus error-vs-time) and `../results/plots/motionnet_gru_*`. When C+NHC and D coincide
+(no road matched), the purple line is hidden under the blue one.
+
+![summary](results/pre_step1_test_run/plots/summary_test.png)
+
+How it was produced: MotionNet trained on 30 drives, then filter and map settings chosen on the validation drives
+only (`python -m archive_experiments.tune`, `results/tuning_val.csv`): NHC σ 0.15 m/s, MotionNet σ ×1.0,
+across-road σ 8 m. The test drives were then evaluated once with those settings.
+
 ## Contents
 
 | Path | What it is |

@@ -100,7 +100,7 @@ filter:
   nhc_max_yaw_rate: 0.4             # rad/s: skip NHC above this (aggressive cornering / sideslip)
   nhc_freeze_yaw: false             # true: NHC may not rotate the heading (pre-Step-1 behaviour)
   motion_sigma_floor: 0.3           # m/s minimum MotionNet pseudo-measurement std
-  motion_sigma_scale: 1.0           # scale on predicted std (tuned on validation drives: src.tune)
+  motion_sigma_scale: 1.0           # scale on predicted std (tuned on validation drives: archive_experiments.tune)
   # Decorrelated updates (1 Hz, R inflated by (1+rho)/(1-rho), rho = exp(-1/(hz*tau)),
   # tau = 6.7 s measured on validation drives) make P_vf honest but were the worst
   # setting on validation: median drift 60% (car GNSS) / 66% (phone) vs 18% / 30%
