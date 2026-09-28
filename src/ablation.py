@@ -30,12 +30,12 @@ SETTINGS = {
                    "model.path": "results/models/motionnet.pt"},
     "Step 1 (as committed)": STEP1,
     "Step 1 + NHC may not rotate heading": {**STEP1, "filter.nhc_freeze_yaw": True},
-    "Step 2 (default)": {},
+    "Step 2 as specified (1 Hz, R inflated)": {"filter.motion_update_hz": 1.0, "filter.motion_err_tau_s": 6.7},
+    "Step 2 (default: lever arm + gating, 10 Hz MotionNet)": {},
     "Step 2, no lever arm": {"filter.lever_arm_x": 0.0},
     "Step 2, no NHC gating": NO_GATING,
-    "Step 2, 10 Hz MotionNet (no decorrelation)": {"filter.motion_update_hz": 10.0, "filter.motion_err_tau_s": 0},
-    "Step 2, 1 Hz without R inflation": {"filter.motion_err_tau_s": 0},
-    "Step 2, fixed sigma_v 2.0": {"filter.motion_sigma_fixed": 2.0},
+    "Step 2, 1 Hz without R inflation": {"filter.motion_update_hz": 1.0, "filter.motion_err_tau_s": 0},
+    "Step 2, 1 Hz fixed sigma_v 2.0": {"filter.motion_update_hz": 1.0, "filter.motion_sigma_fixed": 2.0},
     "Step 2 + NHC may not rotate heading": {"filter.nhc_freeze_yaw": True},
 }
 

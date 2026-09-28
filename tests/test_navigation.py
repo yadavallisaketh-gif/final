@@ -305,6 +305,7 @@ def test_motionnet_update_rate_and_r_inflation(cfg):
     from src.models.motion_net import MotionModel, MotionGRU
     al = Alignment(np.eye(3), 9.81, 0, 0, 1, 1, 1, 0)
     m = MotionModel(MotionGRU(5, 8), "gru", ["a_f", "a_l", "a_u", "w_u", "w_h"], 20, np.zeros(5), np.ones(5), hidden=8)
+    cfg["filter"].update(motion_update_hz=1.0, motion_err_tau_s=6.7)   # decorrelated mode
     eng = NavigationEngine(cfg, al, VARIANTS["C"], 10.0, m)
     assert eng.motion_every_n == 10                     # 1 Hz at a 10 Hz IMU
     rho = np.exp(-1.0 / cfg["filter"]["motion_err_tau_s"])

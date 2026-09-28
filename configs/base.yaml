@@ -101,9 +101,14 @@ filter:
   nhc_freeze_yaw: false             # true: NHC may not rotate the heading (pre-Step-1 behaviour)
   motion_sigma_floor: 0.3           # m/s minimum MotionNet pseudo-measurement std
   motion_sigma_scale: 1.0           # scale on predicted std (tuned on validation drives: src.tune)
-  motion_update_hz: 1.0             # MotionNet speed updates per second (was 10)
-  motion_err_tau_s: 6.7             # s, MotionNet error correlation time (median over validation drives);
-                                    # R is inflated by (1+rho)/(1-rho), rho = exp(-1/(hz*tau)); 0 = no inflation
+  # Decorrelated updates (1 Hz, R inflated by (1+rho)/(1-rho), rho = exp(-1/(hz*tau)),
+  # tau = 6.7 s measured on validation drives) make P_vf honest but were the worst
+  # setting on validation: median drift 60% (car GNSS) / 66% (phone) vs 18% / 30%
+  # at 10 Hz. With no other speed information in a blackout, discounting MotionNet
+  # lets the accelerometer bias (~0.25 m/s^2) drive the speed. Kept at 10 Hz;
+  # set motion_update_hz: 1.0, motion_err_tau_s: 6.7 for consistent covariances.
+  motion_update_hz: 10.0            # MotionNet speed updates per second
+  motion_err_tau_s: 0               # s, MotionNet error correlation time for R inflation (0 = none)
   motion_sigma_fixed: null          # m/s: if set, use this instead of predicted-sigma * inflation
   # A scalar bias correction was requested (+0.34 m/s, measured on test drive S1).
   # Validation drives disagree (S3c -3.19, Vta16 +0.07, Vfa01 -0.41 m/s): the
