@@ -1,5 +1,8 @@
 # SIH26168: Intelligent Dead Reckoning MVP
 
+Early MVP (proof of concept) of AVIRAT - Team Web Forge, Smart India Hackathon 2026 (SIH26168).
+AVIRAT is our final design; this repository is the proof of concept it builds on. See docs/DETAILED_MVP_REPORT.md for scope and limitations.
+
 This MVP keeps estimating a car's position through a GNSS blackout. It uses only a smartphone IMU, learned motion, vehicle physics and road geometry.
 It is built on the [IO-VNBD](https://github.com/onyekpeu/IO-VNBD) dataset and follows
 the *Model Build Playbook*: three core features, strict no-leakage rules, and an honest ablation.
@@ -67,8 +70,10 @@ Thresholds are in `configs/base.yaml: anomaly` and come from the training drives
 - **Shock (pothole / speed bump).** |a_z − rolling 1 s mean| > 5 m/s² (training p99.95). For the next
   1 s the accelerometer process noise on v_f and v_l is multiplied by 100, so MotionNet, NHC and
   the filter's momentum carry the speed through the jolt.
-- **Mount slip.** A gyro burst (‖ω − rolling mean‖ > 1 rad/s) opens a candidate. It is confirmed only if
-  the mean specific force over the next 1 s has rotated by more than 3° relative to the second before.
+- **Mount slip.** A gyro burst (‖ω − rolling 1 s mean‖ > 3.0 rad/s; training p99.99 = 2.7) opens a candidate.
+  It is confirmed only if gravity has shifted by more than 10°. Gravity is the mean specific force over near-1 g
+  samples (||a| − g| < 0.3 m/s²) in a 3 s window before the burst and a 3 s window after it. The post window
+  starts after a 1 s settle pause and is extended up to 8 s until it has enough near-1 g samples.
   Bumps and sharp turns also make gyro bursts, and this check filters them out. On a confirmed slip, the
   gravity estimate of the dynamic attitude filter is rotated by the measured rotation (instant
   re-levelling) and the mount-dependent lateral bias `b_l` is reopened. An unconfirmed burst is
@@ -198,7 +203,7 @@ Run `python -m src.audit schema --drive <id>` to reproduce every row of this tab
 - `--compare` trains a causal TCN with the same split.
 
 **2b. 2-D EKF** (`src/fusion/ekf2d.py`)
-- State `[x, y, v_f, v_l, yaw, b_a, b_g]`: the playbook state plus an explicit lateral velocity, so NHC is a real measurement.
+- State [x, y, v_f, v_l, yaw, b_a, b_g, b_l, r_x, b_v]; the lever arm r_x and MotionNet bias b_v are present but switched off in the MVP.
 - GNSS position, speed and course updates are applied only while healthy, with χ² gating and recovery when a channel keeps being rejected.
 - Reacquisition inflates R for a few seconds. The **displayed** position eases onto the fix instead of teleporting (`disp_x`, `disp_y`).
 - During dead reckoning, the MotionNet speed is a pseudo-measurement with its predicted σ. IMU biases are frozen as "consider" states, because pseudo-measurements cannot observe them.
