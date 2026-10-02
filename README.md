@@ -149,7 +149,7 @@ make replay     # Streamlit replay dashboard
 
 | Target | What it runs |
 |---|---|
-| `make data` | `python -m src.download_data` |
+| `make data` | download, process every drive (`avirat/io/iovnbd.py`), write `configs/splits.yaml` |
 | `make explore` | `scripts/explore_iovnbd.py`: raw-file inventory, column roles, axis and unit evidence → `results/data_report.md` |
 | `make baseline` | raw INS (A) and filtered INS (B) on the test drives |
 | `make train` | MotionNet training into `outputs/models/motionnet_candidate.pt`; refuses to overwrite `results/models/motionnet.pt` |
@@ -167,12 +167,45 @@ Configuration:
 - Load the development profile with `src.config.load_default()` and `stage_settings()`. Logging goes through
   `src.logging_utils.get_logger()`.
 
+## Processed data (`make data`)
+
+`make data` downloads IO-VNBD, converts every drive with `avirat/io/iovnbd.py` into
+`data/processed/<drive>.parquet`, and writes `configs/splits.yaml` (`avirat/io/splits.py`). The
+column mapping is the one established in `results/data_report.md`. Per-drive results, including
+every check value, are in `results/loader_report.csv`.
+
+One table per drive, on a single time base at `imu.rate_hz` (`configs/default.yaml`):
+
+| Group | Columns | Notes |
+|---|---|---|
+| IMU | `t_ns`, `ax ay az` (m/s²), `gz` (rad/s), `g_horiz`, `imu_real`, `session` | Vehicle frame: x forward, y left, z up. `az` is specific force (+g at rest). |
+| IMU, not identified | `gx`, `gy` | Always NaN: only the vertical gyro axis is identified, so nothing is guessed. `g_horiz` is the rotation-invariant magnitude of the other two. |
+| IMU, before mount rotation | `ax_level`, `ay_level` | The levelled accelerometer before the mount rotation, so later stages can re-fit the mount causally. |
+| Phone GNSS | `gnss_lat lon alt`, `gnss_e n u` (ENU m, origin = first fix, pymap3d), `gnss_speed_mps`, `gnss_course_rad` (clockwise from north), `gnss_accuracy_m`, `gnss_fix` | Interpolated between real fixes. `gnss_fix` marks the sample of each real fix. |
+| Labels | `wheel_speed_mps`, `ref_*` (car GNSS: lat/lon/e/n/speed/course), `wheel_valid`, `ref_valid` | On the phone clock via the gyro / yaw-rate synchronisation. Labels only. |
+
+Checks per drive (a failure raises `LoaderCheckError` naming the drive and the check):
+- **Gravity:** median |a| at rest within 9.81 ± 0.5 m/s². A drive that never stops uses the norm of the per-axis medians over the whole drive instead (noise inflates |a|).
+- **Gyro bias:** the per-axis gyro median at rest has norm ≤ 0.05 rad/s (≤ 0.15 over the whole drive). Noise is recorded, not tested.
+- **Timestamps:** strictly increasing after repair. A drive fails if more than 25% of its rows needed repair.
+- **Rate:** phone and vehicle rates within 10% of 10 Hz, and output spacing exact.
+- **GNSS plausibility:** phone GNSS speed and distance from the origin are within plausible bounds.
+
+Result of the current run (all from `results/loader_report.csv` and `configs/splits.yaml`):
+- **All 72 drives pass.** 10.6 M rows at 100 Hz, of which 10% are recorded samples and the rest interpolated.
+- **Ground truth:** aligned for 20.0 h of 29.9 h.
+- **Repairs:** 5,456 duplicated phone rows were dropped in Vtb1. Vw1 and Vw15 have no live phone GNSS (one value held for the whole drive), and their ENU origin is the car's first fix.
+- **Vehicle-frame `ax`/`ay`:** available in 19 drives. Their mount yaw was fitted from the first 300 s only, and the fit's block-bootstrap std is at most 10°. Elsewhere `ax`/`ay` are NaN, with the reason recorded in the parquet metadata. Where both GNSS sources passed, the phone-GNSS and car-GNSS fits agree to 1.5° (median).
+- **Split:** train 26 / val 4 / test 2 drives. That is 62 / 16 / 22% of labelled duration, against a target of about 70 / 15 / 15. The MVP test drives S1 and M stay in test and alone make up 22%.
+  - 40 drives have under 60 s of truth and are in no split.
+  - Vw2 moved from the MVP training set into val, so `results/models/motionnet.pt` must not be scored on it.
+
 ## Quick start (without make)
 
 ```bash
 pip install -r requirements.txt
 python -m src.download_data                  # ALL 72 drives, ~430 MB, checksum-verified (the map needs the training drives)
-python -m pytest -q                          # 86 unit tests, no dataset needed
+python -m pytest -q                          # 97 unit tests, no dataset needed
 python -m src.evaluate --config configs/sih_mvp.yaml --tag sih_mvp --plots 0   # benchmark: 60 s median drift 9.91%
 streamlit run src/ui/app.py                  # replay dashboard
 ```
@@ -280,6 +313,8 @@ docs/DETAILED_MVP_REPORT.md  MVP technical report: scope, architecture, verified
 docs/android_integration.md  SensorManager / Location → SensorSample plan
 src/ui/app.py, src/ui/sim.py Streamlit replay dashboard (real engine, test drives)
 scripts/export_onnx.py       MotionNet -> ONNX for on-device inference, with parity check
+avirat/io/iovnbd.py          IO-VNBD loader: checked, resampled, ENU, labels -> data/processed/<drive>.parquet
+avirat/io/splits.py          configs/splits.yaml (drive-level train / val / test)
 scripts/explore_iovnbd.py    IO-VNBD exploration: files, signals, column roles, axis/unit evidence -> results/data_report.md
 ```
 

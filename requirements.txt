@@ -3,6 +3,8 @@ scipy>=1.10
 pandas>=2.0
 matplotlib>=3.7
 pyyaml>=6.0
+pyarrow>=14
+pymap3d>=3.0
 torch>=2.1
 pytest>=7.0
 # UI demo (src/ui/app.py) and mobile export (scripts/export_onnx.py)

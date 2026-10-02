@@ -11,7 +11,8 @@ MVP_MODEL := results/models/motionnet.pt
 .PHONY: help data explore baseline train fuse figures replay test all
 
 help:
-	@echo "make data      download IO-VNBD (all 72 drives, ~430 MB, checksum-verified)"
+	@echo "make data      download IO-VNBD (72 drives, ~430 MB, checksum-verified), process every drive into"
+	@echo "               data/processed/<drive>.parquet with sanity checks, write configs/splits.yaml"
 	@echo "make explore   data report: results/data_report.md (+ CSV detail in results/data_report/)"
 	@echo "make baseline  raw INS (A) and filtered INS (B) on the test drives"
 	@echo "make train     train MotionNet -> $(NEW_MODEL) (committed MVP model untouched)"
@@ -23,6 +24,8 @@ help:
 
 data:
 	$(PYTHON) -m src.download_data
+	$(PYTHON) -m avirat.io.iovnbd --all
+	$(PYTHON) -m avirat.io.splits
 
 explore:
 	$(PYTHON) scripts/explore_iovnbd.py

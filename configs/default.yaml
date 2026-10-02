@@ -29,5 +29,31 @@ paths:
   raw: data/iovnbd                  # = data.root, populated by `make data`
   cache: data/cache
   results: results                  # committed, reproducible results
+  processed: data/processed         # loader output: one parquet per drive (`make data`)
   outputs: outputs                  # scratch run outputs (not in git)
   logs: outputs/logs
+
+# IO-VNBD loader (avirat/io/iovnbd.py). Column mapping and units: results/data_report.md.
+loader:
+  native_rate_hz: 10                # IO-VNBD phone and vehicle logs; rate check: median dt within rate_tol
+  rate_tol: 0.10
+  gravity: 9.81
+  gravity_tol: 0.5                  # check: median |a| at rest within gravity +/- gravity_tol
+  rest_acc_std: 0.05                # rest = 1 s std of |a| below this (accelerometer only) ...
+  rest_wheel_max_mps: 0.1           # ... and wheel speed below this where the vehicle log is aligned
+  rest_min_samples: 20              # fewer rest samples: the rest checks fall back to whole-drive medians
+  rest_gyro_max: 0.05               # rad/s, check: norm of the per-axis gyro median (bias) at rest
+  drive_gyro_max: 0.15              # rad/s, same over the whole drive when it never stops
+  max_repair_frac: 0.25             # fail if more than this share of phone rows had to be dropped
+  # Vehicle frame (x forward, y left, z up). The logger already levels the accelerometer
+  # (z = +g); its horizontal axes are rotated to forward/left by a per-drive mount yaw fitted
+  # against GNSS-derived [dv/dt, v*w] over the first mount_calib_s of the drive only. No
+  # blackout window can start that early (evaluate.warmup_s), so no GNSS from inside a
+  # blackout shapes the IMU. Sources are tried in order; 'vehicle' is the car's receiver
+  # (as in the MVP profile), 'phone' its own ~0.1 Hz GNSS.
+  mount_calib_s: 300
+  mount_gnss: [vehicle, phone]
+  mount_min_corr: 0.3               # fit quality gates: correlation of the rotated accelerometer with the
+  mount_max_std_deg: 10.0           # GNSS reference, and the block-bootstrap std of the fitted angle;
+                                    # failing fits leave ax / ay as NaN (status recorded per drive)
+  gnss_max_gap_s: 15.0              # phone fixes further apart than this are not interpolated across
