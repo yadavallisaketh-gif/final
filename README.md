@@ -17,22 +17,67 @@ IO-VNBD replay / Android / external IMU  ──►  SensorSample stream
 
 ## Results: Hackathon MVP (passenger car)
 
-**60 s GNSS blackout: 9.9% median drift** on held-out test drives. See it replayed live with
-`streamlit run src/ui/app.py` (section below).
+**Smartphone only (phone IMU + the phone's own GNSS before the blackout): 25.5 / 20.1 / 29.3% median
+drift** after 30 / 60 / 120 s blackouts on the held-out test drives. **With the car's reference receiver
+before the blackout (upper bound): 17.0 / 9.9 / 21.3%.** Only the upper bound meets < 10%, and only at 60 s.
+See it replayed live with `streamlit run src/ui/app.py` (section below).
 
-`configs/sih_mvp.yaml` is the current pipeline (lever-arm NHC with turn gating, MotionNet at 10 Hz,
-map proxy). Pre-blackout GNSS comes from the car's reference receiver. The IO-VNBD phone GPS lags the
-IMU by seconds, and latency compensation is deferred to the real-world phase. **Inside every blackout
-no GNSS of any kind is used.**
+`configs/sih_mvp.yaml` is the current pipeline: lever-arm NHC with turn gating, MotionNet at 10 Hz, and
+a road proxy. **Inside every blackout no GNSS of any kind is used.** The two rows differ only in the GNSS
+used *before* the blackout, which initialises position, speed, heading and the phone mount.
 
-Held-out test drives S1 (unseen drive of a training driver) and M (a driver not in training), 36 blackouts,
-full system D: MotionNet + EKF + lever-arm NHC + road proxy (median drift % of distance travelled):
+Held-out test drives: S1 (an unseen drive of a training driver) and M (a driver not in training).
+36 blackouts, full system D (MotionNet + EKF + lever-arm NHC + road proxy). Values are median drift as a
+percentage of distance travelled, with a 95% bootstrap CI:
 
 | Blackout | 30 s | 60 s | 120 s |
 |---|---|---|---|
 | Mean distance travelled | 251 m | 470 m | 957 m |
-| Hackathon MVP | 17.0% | **9.9% (< 10%)** | 21.3% |
+| **Smartphone result** (phone GNSS, one update per fix) | **25.5%** [14.3, 39.3] | **20.1%** [12.7, 32.6] | **29.3%** [10.4, 48.1] |
+| Upper bound: car reference receiver before the blackout | 17.0% [10.5, 22.9] | 9.9% [8.0, 18.1] | 21.3% [7.6, 32.3] |
+| Phone GNSS as logged (each fix repeated on every row) | 33.7% [16.0, 37.1] | 20.6% [18.4, 65.9] | 50.4% [25.8, 93.9] |
 | Raw inertial integration (baseline) | 80.3% | 107.4% | 171.4% |
+
+Validation drives (S3c, Vta16, Vfa01; 18 windows per duration):
+
+| Blackout | 30 s | 60 s | 120 s |
+|---|---|---|---|
+| Smartphone result | 26.9% [18.3, 50.8] | 29.0% [22.0, 48.1] | 22.9% [16.0, 41.5] |
+| Upper bound (reference receiver) | 16.5% [10.6, 25.6] | 25.0% [15.0, 34.6] | 26.3% [20.3, 41.4] |
+
+Source: `results/sih/phone_gnss.csv` (per window: `results/sih/phone_gnss_windows.csv`), from
+`python scripts/eval_phone_gnss.py`. The smartphone configuration was chosen on the validation drives
+only, by the lowest mean of the three medians, among 9 phone configurations. Test was then reported once
+for all of them.
+
+### Phone GNSS: latency is not the problem; repeated fixes are
+
+`scripts/calibrate_phone_lag.py` measured this on validation drives only (`results/sih/phone_lag_calibration.csv`):
+- **The phone logs a new fix about every 9 s and repeats it on every 10 Hz row.** Each fix itself is close to
+  on time: it lines up best with the car's track at **0.1–0.2 s** before its timestamp.
+- **The "seconds-long lag" comes from the repetition.** Cross-correlating the repeated rows gives 4.3–4.7 s,
+  because a value held for ~9 s lags by half the interval on average.
+- **Per-fix updates fix the real problem** (`phone_gnss.event_updates`). As logged, the filter applied a
+  0–9 s old fix about 90 times as if it were current. Each fix is now applied once.
+- **Per-fix mode needed three supporting changes**, found on validation:
+  - Initialise only on a fix that appears while the filter is running (the first logged row may be ~9 s old).
+  - Accept a fix after 2 consecutive gate rejections, not 5. At one fix per 9 s, 5 rejections take 45 s.
+  - Optionally use MotionNet speed between fixes (`motion_between_fixes`). It was not selected on validation.
+- **Latency compensation is implemented and tested but brings no measurable gain here.**
+  - The online estimator (`src/fusion/lag.py`) cross-correlates the GNSS course and speed changes with
+    the gyro and forward accelerometer over a 120 s window, using phone data only. When it isn't
+    confident, it falls back to the validation default (0.1 s).
+  - Delayed updates roll the filter back to t − τ and replay the IMU to the present.
+  - On test, the paired median change against per-fix updates is −0.4 to +1.1 points for every blackout
+    length and both variants (fixed τ, online τ).
+  - The online estimate on the test drives is 0.38–0.45 s median, slightly above the 0.1–0.2 s measured against the reference.
+  - Unit tests show the compensation works when the lag is real: with a synthetic 2 s lag it cuts the
+    GNSS-mode position error by more than half and recovers τ = 2.0 s. A rolled-back update reproduces an
+    on-time update to 1e-10.
+- **The smartphone gain over phone-as-logged is not statistically clear.** The paired 95% CIs include 0
+  at every length (test medians −4.2 / −0.8 / −10.4 points; 9 / 6 / 8 of 12 windows better).
+- **Leakage guard:** a fix first logged inside a blackout is no longer carried past its end by the
+  log's repetition. A receiver in a tunnel produces no fix.
 
 Submission figures (300 dpi), in `results/sih/`:
 - `sih_overview_S1_sih_mvp.png`, `sih_overview_M_sih_mvp.png`: the full ground-truth track
@@ -52,7 +97,8 @@ python -m src.evaluate --config configs/sih_mvp.yaml --tag sih_mvp --sih-plots
 ```
 
 Read these numbers honestly:
-- **Only 60 s passes.** The 60 s median is 9.9% over 12 windows; 30 s and 120 s do not meet < 10%.
+- **Only the reference-receiver 60 s result passes.** Its median is 9.9% over 12 windows. Every
+  smartphone result and the 30 s and 120 s reference results are above 10%.
 - **These drives were seen during development.** The test drives were evaluated repeatedly while the
   pipeline was built. Settings were chosen on validation drives, but an older configuration
   (`pre-Step-1` in `archive_experiments/ablation.py`) scores 10.9 / 7.8 / 11.6% on the same windows. It was
@@ -60,8 +106,11 @@ Read these numbers honestly:
 - **Accelerometer-free speed was tried and rejected.** MotionNet-only speed during blackouts
   (`filter.dr_accel_mode: decouple`) was worse on validation (25 / 19 / 20% vs 18 / 19 / 14%) and on
   test (60 s: 12.8%), so the MVP keeps the accelerometer.
-- **Phone GPS is much worse.** With the phone's own GPS before the blackout, the same pipeline gives
-  about 34 / 21 / 50%.
+- **The smartphone result is the one to quote for a phone-only product.** The 9.9% needs the car's reference
+  receiver before the blackout. With the phone alone, the 60 s median is 20.1% (see the table above).
+- **A variant that looks better on test was not chosen.** MotionNet between fixes scores 21.3 / 14.7 / 23.8%
+  on test but was worse on validation (27.4 / 29.2 / 33.0%), so it was not selected. Choosing it now would be
+  tuning on test.
 
 ### Anomaly & misalignment detector (`src/anomaly_detector.py`)
 
@@ -205,7 +254,7 @@ Result of the current run (all from `results/loader_report.csv` and `configs/spl
 ```bash
 pip install -r requirements.txt
 python -m src.download_data                  # ALL 72 drives, ~430 MB, checksum-verified (the map needs the training drives)
-python -m pytest -q                          # 98 unit tests, no dataset needed
+python -m pytest -q                          # 107 unit tests, no dataset needed
 python -m src.evaluate --config configs/sih_mvp.yaml --tag sih_mvp --plots 0   # benchmark: 60 s median drift 9.91%
 streamlit run src/ui/app.py                  # replay dashboard
 ```
@@ -315,6 +364,9 @@ src/ui/app.py, src/ui/sim.py Streamlit replay dashboard (real engine, test drive
 scripts/export_onnx.py       MotionNet -> ONNX for on-device inference, with parity check
 avirat/io/iovnbd.py          IO-VNBD loader: checked, resampled, ENU, labels -> data/processed/<drive>.parquet
 avirat/io/splits.py          configs/splits.yaml (drive-level train / val / test)
+src/fusion/lag.py            phone-GNSS lag estimator (phone data only) + delayed-measurement rollback buffer
+scripts/calibrate_phone_lag.py  validation-only phone fix latency -> results/sih/phone_lag_calibration.csv
+scripts/eval_phone_gnss.py   smartphone vs reference-receiver evaluation -> results/sih/phone_gnss.csv
 scripts/explore_iovnbd.py    IO-VNBD exploration: files, signals, column roles, axis/unit evidence -> results/data_report.md
 ```
 

@@ -16,7 +16,7 @@ learned speed model, vehicle kinematics and a road-geometry constraint. It is de
 
 | Component | Location | Status |
 |---|---|---|
-| IDR engine: preprocessing, MotionNet, 2-D EKF, NHC, map constraint, anomaly detector | `src/` | Working; 98 unit tests pass |
+| IDR engine: preprocessing, MotionNet, 2-D EKF, NHC, map constraint, anomaly detector | `src/` | Working; 107 unit tests pass |
 | Replay dashboard (the "Digital Twin" UI) | `src/ui/app.py`, `src/ui/sim.py` | Working; replays recorded test drives through the engine |
 | Edge model: MotionNet in ONNX | `results/models/motionnet_mobile.onnx`, exported by `scripts/export_onnx.py` | Exported and checked with ONNX Runtime; not yet run on a phone |
 
@@ -190,20 +190,27 @@ loaders accept OSM files (`--set map.osm_path=...`), but no OSM result has been 
 
 ## 3. Known limitations: why this is not the final solution
 
-### 3.1 Pre-blackout GNSS: car reference receiver, not the phone
+### 3.1 Pre-blackout GNSS: smartphone result vs reference-receiver upper bound
 
-In the IO-VNBD recordings, the smartphone's GNSS lags its IMU by several seconds. This was measured while aligning
-the clocks; the MVP does not model or compensate the lag. Initialising the filter from a fix that is seconds old
-corrupts the heading, speed and mount-yaw estimates before the outage begins.
+The headline 9.9% (60 s) initialises the filter from the **car's reference GNSS receiver** before the blackout
+(`configs/sih_mvp.yaml: data.gnss_source: vehicle`). It is an upper bound: a phone-only product does not have that
+receiver. Inside every blackout no GNSS of any kind reaches the engine.
 
-For the screening benchmark, the MVP therefore uses the **car's reference GNSS receiver**, time-aligned to the phone,
-for the pre-blackout phase only (`configs/sih_mvp.yaml: data.gnss_source: vehicle`). This isolates what the
-benchmark is meant to test: the dead-reckoning performance once GNSS is lost. Inside every blackout no GNSS of any
-kind reaches the engine.
+**Smartphone-only result** (phone GNSS before the blackout, one update per phone fix; chosen on validation):
+25.5 / 20.1 / 29.3% median drift at 30 / 60 / 120 s on the test drives, against 17.0 / 9.9 / 21.3% for the upper
+bound (`results/sih/phone_gnss.csv`).
 
-With the phone's own GNSS before the blackout, the same pipeline gives about 34 / 21 / 50% median drift at
-30 / 60 / 120 s. Latency estimation and compensation for phone GNSS (for example, a delayed-state update) is
-required before real-world deployment.
+An earlier version of this report said the phone GNSS lags the IMU by several seconds. That is wrong:
+- **Actual latency.** Measured per fix on the validation drives, each fix lines up best with the car's track
+  0.1–0.2 s before its timestamp (`results/sih/phone_lag_calibration.csv`).
+- **Where the "lag" came from.** The phone logs a new fix only about every 9 s and repeats it on every 10 Hz row.
+  The repeated rows look 4.3–4.7 s late.
+- **The fix that matters.** Each fix is now applied once (`phone_gnss.event_updates`), instead of about 90 times.
+- **Latency compensation exists but doesn't help on this data.** An online, phone-only lag estimator with a
+  delayed-state (rollback) update is implemented (`src/fusion/lag.py`). It changes the test medians by −0.4 to
+  +1.1 points, so it is off in the chosen configuration.
+- **What remains.** The phone's low fix rate leaves the pre-blackout state less accurate than with the car's
+  receiver. The gap is 8–10 points of median drift on test.
 
 ### 3.2 Vehicle scope: passenger cars only
 
@@ -274,7 +281,7 @@ python -m src.evaluate --config configs/sih_mvp.yaml --tag sih_mvp --sih-plots  
 python -m src.audit leakage --config configs/sih_mvp.yaml     # 10-point leakage checklist
 python scripts/export_onnx.py                                 # ONNX export + parity check
 streamlit run src/ui/app.py                                   # replay dashboard
-python -m pytest -q                                           # 98 unit tests, no dataset needed
+python -m pytest -q                                           # 107 unit tests, no dataset needed
 ```
 
 | Artefact | File |
