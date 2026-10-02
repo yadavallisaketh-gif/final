@@ -133,12 +133,45 @@ attempts failed: 1 Hz MotionNet, the MotionNet bias state, accelerometer decoupl
 [`archive_experiments/README.md`](archive_experiments/README.md) has the timeline with validation and test numbers,
 the ablation tables, and the former headline results of the pre-Step-1 pipeline.
 
-## Quick start
+## Setup
+
+Requirements: Python 3.10+ (tested on 3.11), `make`, about 1 GB of disk, internet for the one-time download.
+
+```bash
+git clone <this repository> && cd final        # or unzip the submission archive
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+make data       # download IO-VNBD: all 72 drives, ~430 MB, checksum-verified, into data/iovnbd/
+make test       # unit tests, no dataset needed
+make fuse       # MVP benchmark (configs/sih_mvp.yaml): 60 s median drift 9.91%
+make replay     # Streamlit replay dashboard
+```
+
+| Target | What it runs |
+|---|---|
+| `make data` | `python -m src.download_data` |
+| `make baseline` | raw INS (A) and filtered INS (B) on the test drives |
+| `make train` | MotionNet training into `outputs/models/motionnet_candidate.pt`; refuses to overwrite `results/models/motionnet.pt` |
+| `make fuse` | full system D benchmark at 30 / 60 / 120 s |
+| `make figures` | benchmark plus the 300-dpi submission figures |
+| `make replay` | `streamlit run src/ui/app.py` |
+| `make test` | `python -m pytest -q` |
+| `make all` | data, test, baseline, fuse, figures (train is separate: fuse uses the committed model) |
+
+Configuration:
+- `configs/base.yaml` holds the full pipeline, and `configs/sih_mvp.yaml` is the reported MVP profile.
+- `configs/default.yaml` is the development profile for new work. It inherits `base.yaml` and adds `seed: 42`,
+  `imu.rate_hz: 100`, a 2.0 s window with a 0.1 s stride, outages of [30, 60, 120] s, and data/results paths.
+- `default.yaml` does not change the MVP pipeline.
+- Load the development profile with `src.config.load_default()` and `stage_settings()`. Logging goes through
+  `src.logging_utils.get_logger()`.
+
+## Quick start (without make)
 
 ```bash
 pip install -r requirements.txt
 python -m src.download_data                  # ALL 72 drives, ~430 MB, checksum-verified (the map needs the training drives)
-python -m pytest -q                          # 73 unit tests, no dataset needed
+python -m pytest -q                          # 79 unit tests, no dataset needed
 python -m src.evaluate --config configs/sih_mvp.yaml --tag sih_mvp --plots 0   # benchmark: 60 s median drift 9.91%
 streamlit run src/ui/app.py                  # replay dashboard
 ```
@@ -217,6 +250,11 @@ Run `python -m src.audit schema --drive <id>` to reproduce every row of this tab
 
 ```
 configs/base.yaml            every tunable: paths, split, preprocessing, model, filter noise, map, evaluation
+configs/sih_mvp.yaml         the reported MVP profile (inherits base.yaml)
+configs/default.yaml         development profile: seed 42, 100 Hz IMU, 2.0 s / 0.1 s windows, outages, paths
+Makefile                     data, baseline, train, fuse, figures, replay, test, all
+src/config.py                YAML loader (inherit + --set overrides), load_default(), stage_settings()
+src/logging_utils.py         get_logger(): one log format for console and file
 configs/iovnbd_manifest.csv  72 synchronised drives with LFS SHA-256 (download + integrity)
 src/download_data.py         IO-VNBD fetcher (no git-lfs needed)
 src/data_io.py               loader, schema mapping, clock sync, ENU conversion, audit checks
@@ -235,7 +273,7 @@ src/evaluate.py              blackout benchmark, trajectory / error plots, summa
 src/audit.py                 schema report + leakage checklist
 archive_experiments/        historical experiments: ablations, tuning sweep, failed attempts (see its README)
 src/demo_replay.py           90-second judge demo
-tests/                       leakage, timestamps, blackout, navigation, map matching, splits
+tests/                       leakage, timestamps, blackout, navigation, map matching, splits, anomaly, setup
 results/                     metrics, plots and model from the reported run
 docs/DETAILED_MVP_REPORT.md  MVP technical report: scope, architecture, verified metrics, limitations
 docs/android_integration.md  SensorManager / Location → SensorSample plan

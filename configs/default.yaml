@@ -1,0 +1,33 @@
+# Avirat development profile (Stage 1 layout). Inherits every pipeline setting from base.yaml.
+#
+#   from src.config import load_default, stage_settings
+#   cfg = load_default(); st = stage_settings(cfg)      # st.window_samples == 200, ...
+#
+# The keys below are read only by code written against this profile. The verified MVP
+# (9.91% median drift at 60 s) keeps using configs/sih_mvp.yaml -> base.yaml and is
+# unchanged by this file; in particular its seed (7) and MotionNet window (5 s at 10 Hz).
+#
+# Note: IO-VNBD phone IMU data is recorded at 10 Hz. imu.rate_hz is the *target* rate for
+# new code paths (a live phone or an external IMU); feeding IO-VNBD at 100 Hz requires
+# up-sampling, which adds no information.
+inherit: base.yaml
+
+seed: 42
+
+imu:
+  rate_hz: 100                      # Hz
+
+windows:
+  length_s: 2.0                     # model input window
+  stride_s: 0.1                     # step between consecutive windows
+
+outages:
+  lengths_s: [30, 60, 120]          # simulated GNSS blackout lengths
+
+paths:
+  data: data                        # downloaded and cached datasets (not in git)
+  raw: data/iovnbd                  # = data.root, populated by `make data`
+  cache: data/cache
+  results: results                  # committed, reproducible results
+  outputs: outputs                  # scratch run outputs (not in git)
+  logs: outputs/logs

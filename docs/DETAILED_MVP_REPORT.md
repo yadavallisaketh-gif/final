@@ -16,7 +16,7 @@ learned speed model, vehicle kinematics and a road-geometry constraint. It is de
 
 | Component | Location | Status |
 |---|---|---|
-| IDR engine: preprocessing, MotionNet, 2-D EKF, NHC, map constraint, anomaly detector | `src/` | Working; 73 unit tests pass |
+| IDR engine: preprocessing, MotionNet, 2-D EKF, NHC, map constraint, anomaly detector | `src/` | Working; 79 unit tests pass |
 | Replay dashboard (the "Digital Twin" UI) | `src/ui/app.py`, `src/ui/sim.py` | Working; replays recorded test drives through the engine |
 | Edge model: MotionNet in ONNX | `results/models/motionnet_mobile.onnx`, exported by `scripts/export_onnx.py` | Exported and checked with ONNX Runtime; not yet run on a phone |
 
@@ -274,7 +274,7 @@ python -m src.evaluate --config configs/sih_mvp.yaml --tag sih_mvp --sih-plots  
 python -m src.audit leakage --config configs/sih_mvp.yaml     # 10-point leakage checklist
 python scripts/export_onnx.py                                 # ONNX export + parity check
 streamlit run src/ui/app.py                                   # replay dashboard
-python -m pytest -q                                           # 73 unit tests, no dataset needed
+python -m pytest -q                                           # 79 unit tests, no dataset needed
 ```
 
 | Artefact | File |
