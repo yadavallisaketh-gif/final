@@ -21,6 +21,7 @@ import numpy as np
 import pandas as pd
 
 from .anomaly_detector import AnomalyDetector
+from .fusion.lag import DelayBuffer, PhoneLagEstimator
 from .constraints.map_match import MapMatcher
 from .constraints.nhc import apply_nhc
 from .fusion.ekf2d import BL, EKF2D, VF, VL, X, Y, YAW
@@ -95,6 +96,20 @@ class NavigationEngine:
         self._rejects: dict[str, int] = {}
         self._disp_offset = np.zeros(2)
         self._last_fix_t = -np.inf
+        # phone GNSS: one update per real fix, optional latency compensation (configs/base.yaml: phone_gnss)
+        pg = cfg.get("phone_gnss", {})
+        self.event_updates = bool(pg.get("event_updates", False))
+        lc = pg.get("lag_comp", "off")
+        self.lag_comp = "off" if lc in (False, None) or str(lc).lower() in ("false", "off", "none") else str(lc)
+        if self.lag_comp not in ("off", "fixed", "online"):
+            raise ValueError(f"phone_gnss.lag_comp must be off | fixed | online, not {self.lag_comp!r}")
+        if self.lag_comp != "off" and not self.event_updates:
+            raise ValueError("phone_gnss.lag_comp needs phone_gnss.event_updates: a repeated fix has no single time stamp")
+        self.lag_default = float(pg.get("lag_default_s", 0.0))
+        self.lag_est = PhoneLagEstimator(pg) if self.lag_comp == "online" else None
+        self.delay = DelayBuffer(pg["buffer_s"]) if self.lag_comp != "off" else None
+        self._prev_fix: tuple | None = None
+        self.fix_log: list[tuple] = []           # (t stamped, tau used, tau raw, confidence, source, rolled back)
         w = max(int(round(cfg["preprocess"]["stationary_window_s"] * rate_hz)), 3)
         self._acc_n: deque = deque(maxlen=w)
         self._gyr_n: deque = deque(maxlen=w)
@@ -141,11 +156,16 @@ class NavigationEngine:
         # blackout state must be known *before* propagation (GNSS-denied speed model)
         self.ekf.denied = fix is None and s.t - self._last_fix_t > self.fc["gnss_timeout_s"]
         self.ekf.accel_noise_scale = self.cfg["anomaly"]["shock_q_scale"] if s.t < self._shock_until else 1.0
-        self.ekf.predict(s.t, a_f, a_l, w_u)
+        self._op(("predict", s.t, a_f, a_l, w_u, self.ekf.denied, self.ekf.accel_noise_scale))
+        if self.lag_est is not None:
+            self.lag_est.add_imu(s.t, w_u, a_f)
         if fix is not None:
             mode = MODE_GNSS
             before = self.ekf.s[[X, Y]].copy()
-            self._gnss_update(s.t, fix)
+            if self.event_updates:
+                self._fix_event(s.t, fix)
+            else:
+                self._gnss_update(s.t, fix)
             if self.ekf.bias_state:
                 self._motion_update()          # calibrates b_v against GNSS speed
             self._last_fix_t = s.t
@@ -157,11 +177,15 @@ class NavigationEngine:
                 self._motion_update()
         else:
             mode = MODE_DR
+            if self.lag_est is not None and self._last_mode != MODE_DR:
+                self.lag_est.reset()           # the lag window holds healthy-GNSS data only
             self._dead_reckoning_updates(s.t)
         if self.variant.use_nhc:
-            apply_nhc(self.ekf, self.fc["nhc_sigma"] * self.pseudo_scale)
+            self._op(("nhc", self.fc["nhc_sigma"] * self.pseudo_scale))
         self._disp_offset *= np.exp(-max(dt, 0.0) / self.fc["display_blend_s"])
         self._last_mode = mode
+        if self.delay is not None:
+            self.delay.commit(s.t, self.ekf, dr=mode == MODE_DR)
         self._record(s.t, mode)
         self.n += 1
         self.step_time += time.perf_counter() - t0
@@ -181,7 +205,10 @@ class NavigationEngine:
             # new mounting attitude: re-level to the new gravity vector and let the
             # mount-dependent lateral accelerometer bias be re-learned
             self.pre.relevel(ev.rotation)
-            self.ekf.P[BL, BL] += self.fc["bl_prior_sigma"] ** 2
+            if self.initialised:
+                self._op(("p_add", BL, self.fc["bl_prior_sigma"] ** 2))
+            else:
+                self.ekf.P[BL, BL] += self.fc["bl_prior_sigma"] ** 2
         mode = MODE_DR if self.ekf.denied else (MODE_GNSS if self.initialised else MODE_INIT)
         self.anomalies.append((ev.t, ev.kind, ev.magnitude, mode))
 
@@ -213,6 +240,57 @@ class NavigationEngine:
         if len(self._acc_block) >= self.decim:
             self.buffer.append(np.mean(self._acc_block, axis=0)[self._cols])
             self._acc_block = []
+
+    # ------------------------------------------------------------------ recorded filter operations
+    def _op(self, op: tuple):
+        """Apply a filter operation; with latency compensation on, also record it for replay."""
+        self._run_op(op)
+        if self.delay is not None:
+            self.delay.record(op)
+
+    def _run_op(self, op: tuple):
+        kind = op[0]
+        if kind == "predict":
+            _, t, a_f, a_l, w_u, denied, noise = op
+            self.ekf.denied, self.ekf.accel_noise_scale = denied, noise
+            self.ekf.predict(t, a_f, a_l, w_u)
+        elif kind == "nhc":
+            apply_nhc(self.ekf, op[1])
+        elif kind == "gnss":
+            self._gnss_update(op[1], op[2])
+        elif kind == "speed":
+            self.ekf.update_speed(op[1], op[2])
+        elif kind == "p_add":
+            self.ekf.P[op[1], op[1]] += op[2]
+        else:
+            raise ValueError(f"unknown filter op {kind!r}")
+
+    def _fix_event(self, t: float, fix):
+        """Phone GNSS: update once per real fix (the log repeats it on every row until the next one),
+        as a measurement at t - tau when latency compensation is on."""
+        key = (fix.x, fix.y, fix.speed, fix.yaw, fix.pos_std)
+        if self._prev_fix is not None and all(
+                (a == b) or (not np.isfinite(a) and not np.isfinite(b)) for a, b in zip(key, self._prev_fix)):
+            return                                   # same fix as before: no new information
+        self._prev_fix = key
+        tau, raw, conf, src = 0.0, np.nan, 0.0, "off"
+        if self.lag_comp == "fixed":
+            tau, src = self.lag_default, "fixed"
+        elif self.lag_comp == "online":
+            est = self.lag_est.add_fix(t, fix.speed, fix.yaw)
+            tau, raw, conf, src = est.tau, est.tau_raw, est.confidence, est.source
+        op = ("gnss", t - tau, fix)
+        rolled = False
+        if tau > 0 and self.delay is not None:
+            idx = self.delay.rollback_index(t - tau)
+            if idx is not None:
+                self.delay.replay(self.ekf, idx, op, self._run_op)
+                rolled = True
+            else:
+                self.delay.skipped += 1
+        if not rolled:
+            self._op(("gnss", t, fix))
+        self.fix_log.append((t, tau, raw, conf, src, rolled))
 
     def _gnss_update(self, t: float, fix):
         ekf, fc = self.ekf, self.fc
@@ -257,7 +335,7 @@ class NavigationEngine:
             std = max(sd * fc["motion_sigma_scale"] * fc["motion_white_frac"], fc["motion_sigma_floor"])
         else:
             std = max(sd * fc["motion_sigma_scale"], fc["motion_sigma_floor"]) * np.sqrt(self.motion_r_inflation)
-        self.ekf.update_speed(mu, std)
+        self._op(("speed", mu, std))
 
     def _dead_reckoning_updates(self, t: float):
         ekf = self.ekf

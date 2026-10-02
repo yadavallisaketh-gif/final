@@ -35,6 +35,7 @@ from .constraints.map_match import MapMatcher, RoadNetwork
 from .data_io import latlon_to_local, load_drive
 from .dataset import check_split
 from .engine import VARIANTS, NavigationEngine
+from .fusion.lag import events_to_rows
 from .metrics import blackout_metrics
 from .models.motion_net import MotionModel
 from .preprocess import fit_alignment
@@ -64,6 +65,9 @@ def build_network(cfg: dict, origin: tuple[float, float], exclude: set[str]) -> 
 
 def calibration_alignment(est_df: pd.DataFrame, t_start: float, cfg: dict):
     calib = est_df[(est_df["t"] < t_start) & (est_df["t"] >= t_start - cfg["preprocess"]["calib_max_s"])]
+    pg = cfg.get("phone_gnss", {})
+    if pg.get("alignment_from_events") and cfg["data"]["gnss_source"] == "phone":
+        calib = events_to_rows(calib, float(pg.get("lag_default_s", 0.0)))
     return fit_alignment(calib, cfg)
 
 
@@ -94,6 +98,13 @@ def run_window(cfg, drive, w, variants, model, network):
                  motion_updates=inside.get("motionnet", 0), nhc_updates=inside.get("nhc", 0),
                  map_updates=inside.get("map_position", 0), gnss_updates_in_blackout=0,
                  align_fit_corr=al.fit_corr, align_mount_deg=al.mount_yaw_deg)
+        if eng.event_updates:                             # phone-GNSS diagnostics (pre-blackout part of the run)
+            fl = [x for x in eng.fix_log if x[0] < w.t_start]
+            m.update(fixes_used=len(fl), lag_used_median=float(np.median([x[1] for x in fl])) if fl else np.nan,
+                     lag_online_frac=float(np.mean([x[4] == "online" for x in fl])) if fl else np.nan,
+                     lag_raw_median=float(np.nanmedian([x[2] for x in fl])) if fl and np.isfinite([x[2] for x in fl]).any() else np.nan,
+                     lag_at_start=fl[-1][1] if fl else np.nan, lag_source_at_start=fl[-1][4] if fl else "",
+                     rollbacks=eng.delay.rollbacks if eng.delay else 0, rollback_skipped=eng.delay.skipped if eng.delay else 0)
         for kind in ("shock", "transient", "slip"):      # handled by the detector inside the blackout
             m[f"anom_{kind}"] = sum(1 for t, k, *_ in eng.anomalies if k == kind and w.t_start <= t < w.t_end)
         rows.append(m)

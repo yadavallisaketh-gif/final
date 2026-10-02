@@ -84,7 +84,24 @@ def apply_blackout(segment: pd.DataFrame, window: BlackoutWindow | None) -> tupl
     est = segment[ESTIMATOR_COLUMNS].copy()
     if window is not None:
         inside = window.contains(est["t"].to_numpy())
-        est.loc[inside, ["gnss_x", "gnss_y", "gnss_speed", "gnss_yaw", "gnss_std"]] = np.nan
+        cols = ["gnss_x", "gnss_y", "gnss_speed", "gnss_yaw", "gnss_std"]
+        # A slow receiver's log repeats each fix until the next one (IO-VNBD phone: ~9 s). A fix that
+        # first appeared inside the blackout must not reach the estimator through those repeats after
+        # it: a receiver in a tunnel produces no fix. Mask the repeats until the value changes.
+        g = est[cols].to_numpy(float)
+        after = np.flatnonzero(~inside & (est["t"].to_numpy() >= window.t_end))
+        if inside.any() and len(after):
+            j = after[0]
+            same = lambda a, b: np.array_equal(g[a], g[b], equal_nan=True)
+            start = j
+            while start > 0 and same(start - 1, j):
+                start -= 1
+            if inside[start]:                   # the value held at t_end was first logged inside the window
+                k = j
+                while k < len(g) and same(k, j):
+                    inside[k] = True
+                    k += 1
+        est.loc[inside, cols] = np.nan
         est.loc[inside, "gnss_healthy"] = False
     est["gnss_healthy"] = est["gnss_healthy"].astype(bool)
     return EstimatorInput(est.reset_index(drop=True), window), truth

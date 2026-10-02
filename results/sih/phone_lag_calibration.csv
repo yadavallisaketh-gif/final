@@ -1,0 +1,5 @@
+drive,fix_events,median_fix_interval_s,tau_pos_s,tau_speed_s,pos_err_at_tau_m,pos_err_at_0_m,tau_held_rows_s,online_confident_frac,online_tau_median_s,online_tau_iqr_s
+S3c,391.000,9.000,0.100,0.100,4.470,5.064,4.300,0.621,0.500,0.700
+Vta16,122.000,9.000,0.200,0.100,2.080,3.225,4.700,0.164,0.400,0.925
+Vfa01,123.000,9.000,0.100,0.000,2.196,3.196,4.700,0.715,0.550,1.200
+DEFAULT (median tau_pos over validation drives),,,0.100,,,,,,,

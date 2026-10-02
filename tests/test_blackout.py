@@ -55,3 +55,35 @@ def test_drift_percent_definition():
     assert np.isclose(m["distance_m"], dist)
     assert np.isclose(m["endpoint_error_m"], (t[inside][-1] - 5.0) * 2.0)
     assert np.isclose(m["drift_percent"], 100 * m["endpoint_error_m"] / dist)
+
+
+def _held_phone_frame(fix_every_s=9.0):
+    """10 Hz frame whose GNSS columns repeat each fix until the next (IO-VNBD phone style)."""
+    df = to_frame(make_drive(300))
+    t = df["t"].to_numpy()
+    k = np.floor(t / fix_every_s).astype(int)
+    for c in ["gnss_x", "gnss_y", "gnss_speed", "gnss_yaw", "gnss_std"]:
+        v = df[c].to_numpy().copy()
+        first = np.r_[0, np.flatnonzero(np.diff(k)) + 1]
+        df[c] = v[first][k]
+    df["gnss_healthy"] = True
+    return df
+
+
+def test_fix_first_logged_inside_a_blackout_is_not_repeated_after_it():
+    df = _held_phone_frame()
+    w = BlackoutWindow("syn", 0, 100.0, 130.0)          # a fix appears at 126 s, inside the window
+    est, _ = apply_blackout(df, w)
+    e = est.df
+    after = e[(e.t >= 130.0) & (e.t < 135.0)]
+    assert not after.gnss_healthy.any() and after.gnss_x.isna().all()   # 126 s fix held until 135 s: masked
+    nxt = e[(e.t >= 135.0) & (e.t < 136.0)]
+    assert nxt.gnss_healthy.all()                                        # next real fix (135 s) passes
+
+
+def test_fix_logged_before_a_blackout_still_repeats_after_it():
+    df = _held_phone_frame()
+    w = BlackoutWindow("syn", 0, 100.0, 107.0)          # no new fix inside: 99 s fix is held until 108 s
+    est, _ = apply_blackout(df, w)
+    e = est.df
+    assert e[(e.t >= 107.0) & (e.t < 108.0)].gnss_healthy.all()

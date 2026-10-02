@@ -143,6 +143,26 @@ filter:
                                     # (NHC/MotionNet/ZUPT already freeze it via freeze_bias_in_dr)
   display_blend_s: 3.0              # displayed position eases onto GNSS corrections over ~this time
 
+# Phone GNSS handling (data.gnss_source: phone). IO-VNBD's phone writes a new fix about every 9 s
+# and repeats it on every 10 Hz row; event_updates applies each fix once, when it changes. lag_comp
+# applies a fix stamped t as a measurement at t - tau by rolling the filter back (src/fusion/lag.py):
+# off | fixed (tau = lag_default_s) | online (phone-only estimate, default when not confident).
+# All off by default: the MVP is unchanged. Results: results/sih/phone_gnss.csv.
+phone_gnss:
+  event_updates: false
+  lag_comp: "off"                   # quoted: YAML reads a bare off as false
+  lag_default_s: 0.1                # validation-calibrated: results/sih/phone_lag_calibration.csv
+  lag_window_s: 120
+  lag_max_s: 10.0
+  lag_step_s: 0.1
+  lag_min_pairs: 6                  # informative consecutive-fix pairs in the window
+  lag_min_corr: 0.7                 # peak correlation needed to trust the online estimate
+  lag_min_prominence: 0.1           # ... and the correlation curve must not be flat
+  lag_course_min_speed: 3.0         # m/s: course pairs only when both fixes are this fast
+  lag_max_pair_dt_s: 15.0
+  buffer_s: 15.0                    # rollback horizon (>= lag_max_s)
+  alignment_from_events: false      # mount-yaw fit from fix events at t - tau instead of repeated rows
+
 anomaly:
   enabled: true
   window_s: 1.0                     # rolling reference window for both detectors
