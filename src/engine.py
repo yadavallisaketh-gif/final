@@ -109,6 +109,10 @@ class NavigationEngine:
         self.lag_est = PhoneLagEstimator(pg) if self.lag_comp == "online" else None
         self.delay = DelayBuffer(pg["buffer_s"]) if self.lag_comp != "off" else None
         self._prev_fix: tuple | None = None
+        self._first_seen: tuple | None = None
+        self.motion_between_fixes = bool(pg.get("motion_between_fixes", False)) and self.event_updates
+        self.force_after = int(pg.get("force_after", cfg["filter"]["reacq_force_after"])) if self.event_updates \
+            else cfg["filter"]["reacq_force_after"]
         self.fix_log: list[tuple] = []           # (t stamped, tau used, tau raw, confidence, source, rolled back)
         w = max(int(round(cfg["preprocess"]["stationary_window_s"] * rate_hz)), 3)
         self._acc_n: deque = deque(maxlen=w)
@@ -142,6 +146,16 @@ class NavigationEngine:
 
         if not self.initialised:
             mode = MODE_INIT
+            if fix is not None and self.event_updates:
+                # a slow receiver's first logged value may be a fix from up to one interval ago:
+                # initialise only on a fix that first appears while we watch
+                key = self._fix_key(fix)
+                if self._first_seen is None:
+                    self._first_seen = key
+                if key == self._first_seen:
+                    fix = None
+                else:
+                    self._prev_fix = key
             if fix is not None and np.isfinite(fix.yaw) and np.isfinite(fix.speed) \
                     and fix.speed >= self.fc["gnss_heading_min_speed"]:
                 self.ekf.initialise(s.t, fix.x, fix.y, fix.speed, fix.yaw, fix.pos_std)
@@ -163,7 +177,8 @@ class NavigationEngine:
             mode = MODE_GNSS
             before = self.ekf.s[[X, Y]].copy()
             if self.event_updates:
-                self._fix_event(s.t, fix)
+                if not self._fix_event(s.t, fix) and self.motion_between_fixes:
+                    self._motion_update()              # MotionNet speed between sparse fixes (phone only)
             else:
                 self._gnss_update(s.t, fix)
             if self.ekf.bias_state:
@@ -268,10 +283,9 @@ class NavigationEngine:
     def _fix_event(self, t: float, fix):
         """Phone GNSS: update once per real fix (the log repeats it on every row until the next one),
         as a measurement at t - tau when latency compensation is on."""
-        key = (fix.x, fix.y, fix.speed, fix.yaw, fix.pos_std)
-        if self._prev_fix is not None and all(
-                (a == b) or (not np.isfinite(a) and not np.isfinite(b)) for a, b in zip(key, self._prev_fix)):
-            return                                   # same fix as before: no new information
+        key = self._fix_key(fix)
+        if key == self._prev_fix:
+            return False                             # same fix as before: no new information
         self._prev_fix = key
         tau, raw, conf, src = 0.0, np.nan, 0.0, "off"
         if self.lag_comp == "fixed":
@@ -291,6 +305,11 @@ class NavigationEngine:
         if not rolled:
             self._op(("gnss", t, fix))
         self.fix_log.append((t, tau, raw, conf, src, rolled))
+        return True
+
+    @staticmethod
+    def _fix_key(fix) -> tuple:
+        return tuple(round(float(v), 9) if np.isfinite(v) else None for v in (fix.x, fix.y, fix.speed, fix.yaw, fix.pos_std))
 
     def _gnss_update(self, t: float, fix):
         ekf, fc = self.ekf, self.fc
@@ -314,7 +333,7 @@ class NavigationEngine:
             self._rejects[name] = 0
             return
         self._rejects[name] = self._rejects.get(name, 0) + 1
-        if self._rejects[name] >= self.fc["reacq_force_after"]:
+        if self._rejects[name] >= self.force_after:
             for i in states:
                 self.ekf.P[i, i] += reset_std ** 2
             update()

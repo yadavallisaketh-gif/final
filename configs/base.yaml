@@ -162,6 +162,9 @@ phone_gnss:
   lag_max_pair_dt_s: 15.0
   buffer_s: 15.0                    # rollback horizon (>= lag_max_s)
   alignment_from_events: false      # mount-yaw fit from fix events at t - tau instead of repeated rows
+  motion_between_fixes: false       # MotionNet speed updates between sparse fixes (event_updates only)
+  force_after: 2                    # event_updates: accept a fix after this many consecutive gate rejections
+                                    # (filter.reacq_force_after = 5 assumes 10 Hz fixes: 45 s at one per 9 s)
 
 anomaly:
   enabled: true

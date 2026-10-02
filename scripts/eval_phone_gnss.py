@@ -9,6 +9,7 @@ Full system D (configs/sih_mvp.yaml), identical blackout windows for every confi
   phone_lag_fixed     + delayed update at t - tau, tau = validation-calibrated default
   phone_lag_online    + delayed update, tau from the phone-only online estimator (default if unsure)
   phone_lag_online_align  + mount-yaw fit from fix events instead of repeated rows
+  *_mn            the same with MotionNet speed updates between the ~9 s fixes
 Only the validation drives choose the smartphone configuration (lowest mean of the 30/60/120 s
 medians); test is reported for every configuration, nothing is tuned on it. Medians come with
 95% percentile-bootstrap CIs over windows; paired differences against phone_asis and against
@@ -33,6 +34,7 @@ from src.models.motion_net import MotionModel  # noqa: E402
 
 PHONE = ["data.gnss_source=phone"]
 EV = PHONE + ["phone_gnss.event_updates=true"]
+EVM = EV + ["phone_gnss.motion_between_fixes=true"]
 CONFIGS = {
     "reference": ("Reference receiver before the blackout (best case)", []),
     "phone_asis": ("Phone GNSS as logged (repeated fixes)", PHONE),
@@ -41,6 +43,13 @@ CONFIGS = {
     "phone_lag_online": ("Phone GNSS, per fix, delayed update (online tau)", EV + ["phone_gnss.lag_comp=online"]),
     "phone_lag_online_align": ("Phone GNSS, per fix, online tau, event-based mount fit",
                                EV + ["phone_gnss.lag_comp=online", "phone_gnss.alignment_from_events=true"]),
+    "phone_events_mn": ("Phone GNSS, per fix, MotionNet between fixes", EVM),
+    "phone_lag_fixed_mn": ("Phone GNSS, per fix, MotionNet between fixes, delayed update (default tau)",
+                           EVM + ["phone_gnss.lag_comp=fixed"]),
+    "phone_lag_online_mn": ("Phone GNSS, per fix, MotionNet between fixes, delayed update (online tau)",
+                            EVM + ["phone_gnss.lag_comp=online"]),
+    "phone_lag_online_mn_align": ("Phone GNSS, per fix, MotionNet between fixes, online tau, event-based mount fit",
+                                  EVM + ["phone_gnss.lag_comp=online", "phone_gnss.alignment_from_events=true"]),
 }
 VARIANT = "D"
 B = 2000
