@@ -521,7 +521,8 @@ def main(argv=None):
     ok = rep[rep.status == "ok"]
     print(f"{len(ok)}/{len(rep)} drives processed -> {out}/  (report: {a.report})")
     if len(ok):
-        print(f"  rows {int(ok.rows.sum()):,} at {cfg['imu']['rate_hz']:g} Hz ({ok.real_frac.mean():.0%} recorded, rest interpolated); "
+        print(f"  rows {int(ok.rows.sum()):,} at {cfg['imu']['rate_hz']:g} Hz ({ok.real_frac.mean():.0%} have a recorded sample within "
+              f"half a step; values are interpolated onto the exact grid); "
               f"vehicle-frame accel in {int(ok.mount_used.sum())}/{len(ok)} drives; "
               f"labels aligned for {ok.ref_valid_s.sum() / 3600:.1f} h of {ok.duration_s.sum() / 3600:.1f} h")
         print(f"  gravity check: {int((ok.gravity_basis == 'rest').sum())} drives at rest, "

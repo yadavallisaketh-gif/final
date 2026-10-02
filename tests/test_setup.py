@@ -15,9 +15,9 @@ TARGETS = ["data", "baseline", "train", "fuse", "figures", "replay", "test", "al
 def test_default_profile_loads_with_requested_values():
     st = stage_settings(load_default())
     assert st.seed == 42
-    assert st.imu_rate_hz == 100.0
+    assert st.imu_rate_hz == 10.0
     assert (st.window_s, st.stride_s) == (2.0, 0.1)
-    assert (st.window_samples, st.stride_samples) == (200, 10)
+    assert (st.window_samples, st.stride_samples) == (20, 1)
     assert st.outage_lengths_s == (30.0, 60.0, 120.0)
     assert st.paths["data"] == "data" and st.paths["results"] == "results"
 
@@ -42,7 +42,8 @@ def test_mvp_config_is_unchanged_by_the_new_profile():
 def test_overrides_and_validation():
     st = stage_settings(load_default(["imu.rate_hz=200", "windows.stride_s=0.05"]))
     assert (st.window_samples, st.stride_samples) == (400, 10)
-    with pytest.raises(ValueError):                                # 0.105 s is not whole samples at 100 Hz
+    assert stage_settings(load_default(["imu.rate_hz=100"])).window_samples == 200
+    with pytest.raises(ValueError):                                # 0.105 s is not whole samples at 10 Hz
         stage_settings(load_default(["windows.stride_s=0.105"]))
     with pytest.raises(ValueError):
         stage_settings(load_default(["windows.stride_s=3.0"]))      # stride longer than the window

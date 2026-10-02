@@ -25,10 +25,10 @@ def test_stationary_drive_units_and_axes(tmp_path, cfg):
     assert abs(real.gz.median()) < 0.005 and real.g_horiz.median() < 0.02
     assert imu.gx.isna().all() and imu.gy.isna().all()                  # unidentified axes are not guessed
     assert not m["mount"]["used"] and imu.ax.isna().all()               # no motion: no mount fit, ax/ay not invented
-    # timing: strictly increasing ns, config rate, ~1 in 10 samples recorded
+    # timing: strictly increasing ns, config rate, recorded share = native / output rate
     dt = np.diff(imu.t_ns.to_numpy())
     assert (dt > 0).all() and np.median(dt) == pytest.approx(1e9 / cfg["imu"]["rate_hz"], rel=1e-6)
-    assert imu.imu_real.mean() == pytest.approx(0.1, abs=0.01)
+    assert imu.imu_real.mean() == pytest.approx(min(1.0, 10.0 / cfg["imu"]["rate_hz"]), abs=0.01)
     assert imu.t_ns.iloc[0] == pytest.approx(36000e9, abs=1e8)          # ns since midnight, phone clock
     for c in ("gravity", "gyro_rest", "rate_phone", "rate_vehicle", "rate_output", "timestamps"):
         assert m["checks"][c]["pass"], c
@@ -141,3 +141,9 @@ def test_mount_fit_refuses_too_little_calibration_data():
     t = np.arange(600) / 10.0                                           # 60 s: fewer than 3 bootstrap blocks
     f = L.fit_mount_yaw(t, np.sin(t), np.cos(t), t, np.full(600, 10.0), np.zeros(600), 0, 60)
     assert not f["ok"] and "need" in f["reason"]
+
+
+def test_loader_also_upsamples_when_asked(tmp_path):
+    make_raw_drive(str(tmp_path), "REST", n=1500, moving=False)
+    d = L.load_drive("REST", load_default(["imu.rate_hz=100"]), str(tmp_path))
+    assert np.median(np.diff(d.table.t_ns)) == 10_000_000 and d.table.imu_real.mean() == pytest.approx(0.1, abs=0.01)

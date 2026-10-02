@@ -7,15 +7,15 @@
 # (9.91% median drift at 60 s) keeps using configs/sih_mvp.yaml -> base.yaml and is
 # unchanged by this file; in particular its seed (7) and MotionNet window (5 s at 10 Hz).
 #
-# Note: IO-VNBD phone IMU data is recorded at 10 Hz. imu.rate_hz is the *target* rate for
-# new code paths (a live phone or an external IMU); feeding IO-VNBD at 100 Hz requires
-# up-sampling, which adds no information.
+# IMU rate: IO-VNBD is recorded at 10 Hz, so the loader works at its native rate. 100 Hz was
+# tried first: 90% of the samples were interpolated (no new information) at 10x the size.
+# A faster live sensor can set imu.rate_hz higher.
 inherit: base.yaml
 
 seed: 42
 
 imu:
-  rate_hz: 100                      # Hz
+  rate_hz: 10                       # Hz (native IO-VNBD rate)
 
 windows:
   length_s: 2.0                     # model input window

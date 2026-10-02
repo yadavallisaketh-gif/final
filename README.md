@@ -162,7 +162,7 @@ make replay     # Streamlit replay dashboard
 Configuration:
 - `configs/base.yaml` holds the full pipeline, and `configs/sih_mvp.yaml` is the reported MVP profile.
 - `configs/default.yaml` is the development profile for new work. It inherits `base.yaml` and adds `seed: 42`,
-  `imu.rate_hz: 100`, a 2.0 s window with a 0.1 s stride, outages of [30, 60, 120] s, and data/results paths.
+  `imu.rate_hz: 10` (IO-VNBD's native rate), a 2.0 s window with a 0.1 s stride, outages of [30, 60, 120] s, and data/results paths.
 - `default.yaml` does not change the MVP pipeline.
 - Load the development profile with `src.config.load_default()` and `stage_settings()`. Logging goes through
   `src.logging_utils.get_logger()`.
@@ -192,7 +192,7 @@ Checks per drive (a failure raises `LoaderCheckError` naming the drive and the c
 - **GNSS plausibility:** phone GNSS speed and distance from the origin are within plausible bounds.
 
 Result of the current run (all from `results/loader_report.csv` and `configs/splits.yaml`):
-- **All 72 drives pass.** 10.6 M rows at 100 Hz, of which 10% are recorded samples and the rest interpolated.
+- **All 72 drives pass.** 1.06 M rows at 10 Hz (the native rate; 126 MB). Every grid sample has a recorded sample within half a step, and values are interpolated onto the exact grid. 100 Hz was tried first and rejected: 90% of its samples were interpolated, at 10× the size.
 - **Ground truth:** aligned for 20.0 h of 29.9 h.
 - **Repairs:** 5,456 duplicated phone rows were dropped in Vtb1. Vw1 and Vw15 have no live phone GNSS (one value held for the whole drive), and their ENU origin is the car's first fix.
 - **Vehicle-frame `ax`/`ay`:** available in 19 drives. Their mount yaw was fitted from the first 300 s only, and the fit's block-bootstrap std is at most 10°. Elsewhere `ax`/`ay` are NaN, with the reason recorded in the parquet metadata. Where both GNSS sources passed, the phone-GNSS and car-GNSS fits agree to 1.5° (median).
@@ -205,7 +205,7 @@ Result of the current run (all from `results/loader_report.csv` and `configs/spl
 ```bash
 pip install -r requirements.txt
 python -m src.download_data                  # ALL 72 drives, ~430 MB, checksum-verified (the map needs the training drives)
-python -m pytest -q                          # 97 unit tests, no dataset needed
+python -m pytest -q                          # 98 unit tests, no dataset needed
 python -m src.evaluate --config configs/sih_mvp.yaml --tag sih_mvp --plots 0   # benchmark: 60 s median drift 9.91%
 streamlit run src/ui/app.py                  # replay dashboard
 ```
@@ -285,7 +285,7 @@ Run `python -m src.audit schema --drive <id>` to reproduce every row of this tab
 ```
 configs/base.yaml            every tunable: paths, split, preprocessing, model, filter noise, map, evaluation
 configs/sih_mvp.yaml         the reported MVP profile (inherits base.yaml)
-configs/default.yaml         development profile: seed 42, 100 Hz IMU, 2.0 s / 0.1 s windows, outages, paths
+configs/default.yaml         development profile: seed 42, 10 Hz IMU, 2.0 s / 0.1 s windows, outages, paths
 Makefile                     data, baseline, train, fuse, figures, replay, test, all
 src/config.py                YAML loader (inherit + --set overrides), load_default(), stage_settings()
 src/logging_utils.py         get_logger(): one log format for console and file
