@@ -150,6 +150,7 @@ make replay     # Streamlit replay dashboard
 | Target | What it runs |
 |---|---|
 | `make data` | `python -m src.download_data` |
+| `make explore` | `scripts/explore_iovnbd.py`: raw-file inventory, column roles, axis and unit evidence → `results/data_report.md` |
 | `make baseline` | raw INS (A) and filtered INS (B) on the test drives |
 | `make train` | MotionNet training into `outputs/models/motionnet_candidate.pt`; refuses to overwrite `results/models/motionnet.pt` |
 | `make fuse` | full system D benchmark at 30 / 60 / 120 s |
@@ -171,7 +172,7 @@ Configuration:
 ```bash
 pip install -r requirements.txt
 python -m src.download_data                  # ALL 72 drives, ~430 MB, checksum-verified (the map needs the training drives)
-python -m pytest -q                          # 79 unit tests, no dataset needed
+python -m pytest -q                          # 86 unit tests, no dataset needed
 python -m src.evaluate --config configs/sih_mvp.yaml --tag sih_mvp --plots 0   # benchmark: 60 s median drift 9.91%
 streamlit run src/ui/app.py                  # replay dashboard
 ```
@@ -279,6 +280,7 @@ docs/DETAILED_MVP_REPORT.md  MVP technical report: scope, architecture, verified
 docs/android_integration.md  SensorManager / Location → SensorSample plan
 src/ui/app.py, src/ui/sim.py Streamlit replay dashboard (real engine, test drives)
 scripts/export_onnx.py       MotionNet -> ONNX for on-device inference, with parity check
+scripts/explore_iovnbd.py    IO-VNBD exploration: files, signals, column roles, axis/unit evidence -> results/data_report.md
 ```
 
 ## Change log of fixes found by testing

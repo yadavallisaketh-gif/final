@@ -8,10 +8,11 @@ CONFIG    ?= configs/sih_mvp.yaml
 NEW_MODEL ?= outputs/models/motionnet_candidate.pt
 MVP_MODEL := results/models/motionnet.pt
 
-.PHONY: help data baseline train fuse figures replay test all
+.PHONY: help data explore baseline train fuse figures replay test all
 
 help:
 	@echo "make data      download IO-VNBD (all 72 drives, ~430 MB, checksum-verified)"
+	@echo "make explore   data report: results/data_report.md (+ CSV detail in results/data_report/)"
 	@echo "make baseline  raw INS (A) and filtered INS (B) on the test drives"
 	@echo "make train     train MotionNet -> $(NEW_MODEL) (committed MVP model untouched)"
 	@echo "make fuse      full system D benchmark (MotionNet + EKF + NHC + map), 30/60/120 s blackouts"
@@ -22,6 +23,9 @@ help:
 
 data:
 	$(PYTHON) -m src.download_data
+
+explore:
+	$(PYTHON) scripts/explore_iovnbd.py
 
 baseline:
 	$(PYTHON) -m src.evaluate --config $(CONFIG) --variants A B --tag baseline --plots 0
