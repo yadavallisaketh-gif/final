@@ -266,9 +266,10 @@ class NavigationEngine:
         if self.variant.use_nhc and self.fc["zupt"] and self._is_stopped(t):
             ekf.update_zupt(self.fc["zupt_sigma"] * self.pseudo_scale)
             if self.fc["zaru"] and self.variant.estimate_bias and self.n % self.decim == 0:
-                # the preprocessor already removed the calibration bias; add it back
-                w_meas = float(np.mean(self._w_raw)) + float(self.pre.al.gyro_bias[2])
-                ekf.update_zaru(w_meas, self.fc["zaru_sigma"])
+                # The EKF integrates om = w_u - b_g with w_u already calibration-corrected,
+                # so b_g is the *residual* bias and a stopped car reads w_u = b_g. Adding the
+                # calibration bias back (V1) made parked cars turn at -gyro_bias[2] rad/s.
+                ekf.update_zaru(float(np.mean(self._w_raw)), self.fc["zaru_sigma"])
         if self.matcher is not None and self.n % max(self.mc["every"] * self.decim, 1) == 0:
             m = self.matcher.match(ekf.s[X], ekf.s[Y], ekf.s[YAW], t)
             if m is not None:

@@ -23,6 +23,7 @@ Vehicle frame is FLU: x forward, y left, z up.
 """
 from __future__ import annotations
 
+import dataclasses
 import math
 from dataclasses import dataclass, field
 
@@ -258,7 +259,8 @@ class ImuPreprocessor:
 
     def __init__(self, alignment: Alignment, cfg: dict, fs: float, mode: str = "filtered"):
         assert mode in ("raw", "filtered")
-        self.al = alignment
+        # private copy: relevel() changes R, and one Alignment is shared by every variant of a window
+        self.al = dataclasses.replace(alignment, R=np.array(alignment.R, float))
         self.mode = mode
         pc = cfg["preprocess"]
         self.acc_clip, self.gyro_clip = pc["acc_clip"], pc["gyro_clip"]

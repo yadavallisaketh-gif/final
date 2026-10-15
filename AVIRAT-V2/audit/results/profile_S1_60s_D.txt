@@ -1,0 +1,24 @@
+steps 3901  wall 2.70s
+         2599901 function calls (2593982 primitive calls) in 4.310 seconds
+
+   Ordered by: internal time
+   List reduced from 533 to 14 due to restriction <14>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+      586    0.507    0.001    0.507    0.001 {built-in method torch.gru}
+    13788    0.470    0.000    0.933    0.000 /home/user/final/AVIRAT-V2/src/fusion/ekf2d.py:166(_update)
+    54614    0.143    0.000    0.232    0.000 /tmp/claude-0/-home-user-final/ad96db08-fb84-5347-ab3c-569ecffef14c/scratchpad/venv/lib/python3.13/site-packages/numpy/_core/numeric.py:1427(normalize_axis_tuple)
+     7802    0.131    0.000    0.178    0.000 /tmp/claude-0/-home-user-final/ad96db08-fb84-5347-ab3c-569ecffef14c/scratchpad/venv/lib/python3.13/site-packages/numpy/lib/_index_tricks_impl.py:343(__getitem__)
+    13788    0.129    0.000    0.292    0.000 /tmp/claude-0/-home-user-final/ad96db08-fb84-5347-ab3c-569ecffef14c/scratchpad/venv/lib/python3.13/site-packages/numpy/linalg/_linalg.py:547(inv)
+     3901    0.118    0.000    0.547    0.000 /tmp/claude-0/-home-user-final/ad96db08-fb84-5347-ab3c-569ecffef14c/scratchpad/venv/lib/python3.13/site-packages/scipy/signal/_signaltools.py:4970(sosfilt)
+     3900    0.115    0.000    0.169    0.000 /home/user/final/AVIRAT-V2/src/fusion/ekf2d.py:110(predict)
+    27307    0.112    0.000    0.393    0.000 /tmp/claude-0/-home-user-final/ad96db08-fb84-5347-ab3c-569ecffef14c/scratchpad/venv/lib/python3.13/site-packages/numpy/_core/numeric.py:1489(moveaxis)
+     3901    0.097    0.000    0.686    0.000 /home/user/final/AVIRAT-V2/src/preprocess.py:312(_rotate)
+     3901    0.090    0.000    4.249    0.001 /home/user/final/AVIRAT-V2/src/engine.py:113(step)
+     3901    0.090    0.000    0.278    0.000 /tmp/claude-0/-home-user-final/ad96db08-fb84-5347-ab3c-569ecffef14c/scratchpad/venv/lib/python3.13/site-packages/numpy/_core/numeric.py:1563(cross)
+    90852    0.087    0.000    0.093    0.000 {built-in method numpy.array}
+    24799    0.081    0.000    0.111    0.000 /tmp/claude-0/-home-user-final/ad96db08-fb84-5347-ab3c-569ecffef14c/scratchpad/venv/lib/python3.13/site-packages/numpy/lib/_twodim_base_impl.py:178(eye)
+     4346    0.080    0.000    0.136    0.000 /tmp/claude-0/-home-user-final/ad96db08-fb84-5347-ab3c-569ecffef14c/scratchpad/venv/lib/python3.13/site-packages/numpy/_core/_methods.py:148(_var)
+
+
+

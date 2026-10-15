@@ -26,6 +26,26 @@ Tests: N passed / N
 Artifacts added (path, SHA-256):
 ```
 
+## [V2.1.0] - 2026-10-15 - Audit correctness fixes (docs/AUDIT_V2.md in AVIRAT-V2)
+Why: mathematical / engineering audit of the V1 modules found three verified defects.
+What changed (files):
+- `src/engine.py`: ZARU now measures the calibrated yaw rate, so it observes the residual bias the EKF carries.
+  V1 added the calibration bias back, pulling b_g to residual + calibration bias at every stop (D1).
+- `src/preprocess.py`: `ImuPreprocessor` keeps a private copy of the Alignment, so a re-level no longer mutates the
+  Alignment shared by all variants of a window (D2, latent).
+- `src/data_io.py`: the drive cache key hashes every setting `standardise()` reads, which fixes silently stale
+  caches after `--set data.*` / `filter.gnss_pos_sigma` (D3).
+- `tests/test_audit_regressions.py`: 11 tests (5 defect regressions incl. parametrised, 3 verification, 3 cache).
+- `audit/`: instrumented harness, leakage experiment, profiler and their results; `docs/AUDIT_V2.md`.
+Selected on: correctness (derivation + failing test); effect checked on validation first.
+Touched test drives during development: yes (evaluation only, after validation; no tuning).
+Validation D median 30/60/120 s:  16.51 / 25.00 / 26.33 → 16.51 / 25.00 / 23.95
+Test D median 30/60/120 s:        17.00 / 9.91 / 21.33 → 17.00 / 9.91 / 18.55   (C+NHC: 17.00 / 11.38 / 21.33 → 17.00 / 11.38 / 18.55)
+  The 120 s change is inside the bootstrap 95 % CI [7.7, 31.3]: a correctness fix, not a demonstrated accuracy gain.
+  One test window worsened (M t=2100 s 120 s: 3.8 → 6.3 %). Variants A/B/C unchanged.
+Tests: 84 passed / 84
+Artifacts added: none (no model or result file overwritten).
+
 ## [V2.0.0] - 2026-10-15 - Workspace created (preservation stage)
 
 - `AVIRAT-V2/` created as a byte-identical copy of `AVIRAT-V1-ARCHIVE/`. No code, config, model or result changes.

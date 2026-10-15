@@ -16,6 +16,8 @@ counter-clockwise from East (compass heading h -> yaw = 90deg - h).
 from __future__ import annotations
 
 import csv
+import hashlib
+import json
 import os
 import pickle
 import re
@@ -232,11 +234,25 @@ def _interp_valid(tq, tv, values, max_gap=0.5):
 
 
 # --------------------------------------------------------------------------- loading
+def cache_path(drive_id: str, cfg: dict) -> str:
+    """Pickle path for a standardised drive, keyed on every setting `standardise` reads.
+
+    The key covers the whole `data` section (sync, session gaps, column mapping, GNSS
+    source, root) and `filter.gnss_pos_sigma`, which is written into the gnss_std column.
+    A V1 key of only (drive, gnss_source) silently reused stale tables after such changes.
+    """
+    dc = cfg["data"]
+    keyed = {k: v for k, v in dc.items() if k != "cache"}
+    keyed["gnss_pos_sigma"] = cfg["filter"]["gnss_pos_sigma"]
+    digest = hashlib.sha256(json.dumps(keyed, sort_keys=True, default=str).encode()).hexdigest()[:12]
+    return os.path.join(dc["cache"], f"{drive_id}_{dc['gnss_source']}_{digest}.pkl")
+
+
 def load_drive(drive_id: str, cfg: dict, use_cache: bool = True) -> Drive:
     dc = cfg["data"]
-    cache_path = os.path.join(dc["cache"], f"{drive_id}_{dc['gnss_source']}.pkl")
-    if use_cache and os.path.exists(cache_path):
-        with open(cache_path, "rb") as f:
+    cache_path_ = cache_path(drive_id, cfg)
+    if use_cache and os.path.exists(cache_path_):
+        with open(cache_path_, "rb") as f:
             return pickle.load(f)
 
     manifest = read_manifest(dc["manifest"])
@@ -246,7 +262,7 @@ def load_drive(drive_id: str, cfg: dict, use_cache: bool = True) -> Drive:
     drive = standardise(drive_id, driver, s, v, cfg)
     if use_cache:
         os.makedirs(dc["cache"], exist_ok=True)
-        with open(cache_path, "wb") as f:
+        with open(cache_path_, "wb") as f:
             pickle.dump(drive, f)
     return drive
 
