@@ -26,6 +26,31 @@ Tests: N passed / N
 Artifacts added (path, SHA-256):
 ```
 
+## [V2.2.0] - 2026-10-15 - Physics-first speed observations (all OFF by default)
+Why: absolute forward speed is unobservable from an IMU on a straight road at constant speed; derive and test
+the conditions under which physics (not ML) makes it observable. Report: AVIRAT-V2/docs/PHYSICS_OBSERVABILITY.md.
+What changed (files):
+- `src/constraints/physics_obs.py` (new): turn speed with pre-blackout centripetal calibration and context gate;
+  gyro turn-angle scale calibration; map turn-angle (stochastic yaw clone) and corner anchor (along-track only);
+  bump-pair detector (refuses < 100 Hz); two-wheeler lean observation; independence rules.
+- `src/fusion/ekf2d.py`: update_turn_speed / update_lean_speed / update_along_track / update_speed_obs, yaw clone with
+  exact augmented updates. Default path bit-identical.
+- `src/engine.py`: observer hook; physics stop verifier; idle-robust stillness detector with fast exit; ZARU period;
+  MotionNet suppression in valid turn contexts; map heading off when turn_angle is on.
+- `src/evaluate.py`: pre-blackout physics calibration passed to the engine (None unless enabled).
+- `src/scenarios.py`, `src/physics_eval.py` (new): controlled scenarios with exact truth and their scorer.
+- `configs/base.yaml`: `physics:` section and filter stop keys, all defaults = V2.1; `configs/two_wheeler_experimental.yaml`.
+- `tests/test_physics_obs.py`: 24 tests. `audit/`: studies + results.
+Selected on: nothing enabled - no feature showed a benefit on the validation drives.
+Touched test drives during development: only to confirm the defaults reproduce V2.1 (max diff 0.0).
+Validation D median 30/60/120 s: 16.51 / 25.00 / 23.95 (defaults, unchanged). Best candidate turn_speed: 16.41 / 25.00 / 23.86
+  (9 better / 6 worse windows; not significant). gyro_turn_cal, physics stops, map turn features: worse at 120 s.
+Synthetic (8 phones): steady-turn speed MAE 0.37 -> 0.06 m/s; idle-stop drift 15 -> 6 %; straight/braking unchanged
+  (unobservable); crawl and remount fail for every estimator.
+Test D median 30/60/120 s: 17.00 / 9.91 / 18.55 (unchanged)
+Tests: 108 passed / 108
+Artifacts added: none overwritten.
+
 ## [V2.1.0] - 2026-10-15 - Audit correctness fixes (docs/AUDIT_V2.md in AVIRAT-V2)
 Why: mathematical / engineering audit of the V1 modules found three verified defects.
 What changed (files):

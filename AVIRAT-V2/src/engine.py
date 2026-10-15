@@ -23,6 +23,7 @@ import pandas as pd
 from .anomaly_detector import AnomalyDetector
 from .constraints.map_match import MapMatcher
 from .constraints.nhc import apply_nhc
+from .constraints.physics_obs import PhysicsCalibration, PhysicsObserver, physics_enabled
 from .fusion.ekf2d import BL, EKF2D, VF, VL, X, Y, YAW
 from .models.motion_net import MotionModel
 from .preprocess import FEATURE_COLUMNS, Alignment, ImuPreprocessor
@@ -53,7 +54,8 @@ MODE_GNSS, MODE_DR, MODE_INIT = "GNSS+INS", "DEAD RECKONING", "WAITING FOR GNSS"
 
 class NavigationEngine:
     def __init__(self, cfg: dict, alignment: Alignment, variant: Variant, rate_hz: float,
-                 motion_model: MotionModel | None = None, matcher: MapMatcher | None = None):
+                 motion_model: MotionModel | None = None, matcher: MapMatcher | None = None,
+                 physics: PhysicsCalibration | None = None):
         if variant.use_motion and motion_model is None:
             raise ValueError(f"variant {variant.key} needs a MotionNet model")
         if variant.use_map and matcher is None:
@@ -108,6 +110,20 @@ class NavigationEngine:
         self.detector = AnomalyDetector(cfg, rate_hz) if ac.get("enabled") and variant.preprocess == "filtered" else None
         self._shock_until = -np.inf
         self.anomalies: list[tuple] = []     # (t, kind, magnitude, mode when it happened)
+        # physics-first observations (constraints/physics_obs.py); None = V2.1 behaviour exactly
+        self.phys = None
+        if physics_enabled(cfg) and variant.preprocess == "filtered":
+            self.phys = PhysicsObserver(cfg, rate_hz, physics, self.matcher, has_ml=self.model is not None,
+                                        gyro_bias_phone=alignment.R.T @ alignment.gyro_bias,
+                                        gravity=alignment.gravity)
+        wm = max(int(round(self.fc.get("still_smoothed_mean_s", 1.0) * rate_hz)), 3)
+        ws = max(int(round(self.fc.get("still_smoothed_span_s", 2.0) * rate_hz)), 3)
+        self._acc_v: deque = deque(maxlen=wm)
+        self._gyr_v: deque = deque(maxlen=wm)
+        self._acc_s: deque = deque(maxlen=ws)
+        self._af_recent: deque = deque(maxlen=max(int(round(0.5 * rate_hz)), 2))   # fast stop exit
+        self._gyr_s: deque = deque(maxlen=ws)
+        self._last_zaru_t = -np.inf
 
     # ------------------------------------------------------------------ main step
     def step(self, s: SensorSample) -> str:
@@ -119,8 +135,11 @@ class NavigationEngine:
         if event is not None:
             self._handle_anomaly(event)
         f = self.pre.process(s.acc, s.gyro)
+        self._af_recent.append(float(f[0]))
         self._track_stationary(s)
         a_f, a_l, w_u = f[0], f[1], f[5]
+        if self.phys is not None:
+            w_u = self.phys.correct_yaw_rate(w_u)
         self._w_raw.append(float(f[5]))
         self._feed_model(f)
         fix = s.gnss if self.gnss_enabled else None
@@ -160,6 +179,8 @@ class NavigationEngine:
             self._dead_reckoning_updates(s.t)
         if self.variant.use_nhc:
             apply_nhc(self.ekf, self.fc["nhc_sigma"] * self.pseudo_scale)
+        if self.phys is not None:
+            self.phys.step(self, s.t, f, w_u, s.acc, s.gyro, mode == MODE_DR, s.t < self._shock_until)
         self._disp_offset *= np.exp(-max(dt, 0.0) / self.fc["display_blend_s"])
         self._last_mode = mode
         self._record(s.t, mode)
@@ -190,9 +211,32 @@ class NavigationEngine:
         pc = self.cfg["preprocess"]
         self._acc_n.append(float(np.linalg.norm(s.acc)))
         self._gyr_n.append(float(np.linalg.norm(s.gyro)))
-        still = (len(self._acc_n) == self._acc_n.maxlen and np.std(self._acc_n, ddof=1) < pc["stationary_acc_std"]
-                 and np.std(self._gyr_n, ddof=1) < pc["stationary_gyro_std"]
-                 and np.mean(self._gyr_n) < pc["stationary_gyro_max"])
+        if self.fc.get("still_detector", "raw") == "smoothed":
+            # Idle-robust: engine vibration is broadband noise around a constant mean, so test the
+            # stability of the 1 s *mean vectors* over 2 s instead of the raw sample spread. The
+            # vector (not |a|) matters: forward acceleration changes |a| only to second order
+            # (|a| ~ g + a_f^2 / 2g), so a norm test cannot see a car pulling away.
+            self._acc_v.append(np.asarray(s.acc, float))
+            self._gyr_v.append(np.asarray(s.gyro, float))
+            full = len(self._acc_v) == self._acc_v.maxlen
+            if full:
+                self._acc_s.append(np.mean(self._acc_v, axis=0))
+                self._gyr_s.append(np.mean(self._gyr_v, axis=0))
+            still = False
+            if abs(np.mean(self._af_recent)) > self.fc.get("still_exit_acc", np.inf):
+                # asymmetric: the slow 2 s means would hold "stopped" ~1.5 s into a pull-away,
+                # so a sustained forward acceleration ends the stop at once
+                self._acc_s.clear()
+                self._gyr_s.clear()
+            elif full and len(self._acc_s) == self._acc_s.maxlen:
+                A, W = np.array(self._acc_s), np.array(self._gyr_s)
+                still = (np.linalg.norm(np.ptp(A, axis=0)) < self.fc["still_smoothed_acc_ptp"]
+                         and np.linalg.norm(np.ptp(W, axis=0)) < self.fc["still_smoothed_gyro_ptp"]
+                         and np.linalg.norm(W.mean(0)) < pc["stationary_gyro_max"])
+        else:
+            still = (len(self._acc_n) == self._acc_n.maxlen and np.std(self._acc_n, ddof=1) < pc["stationary_acc_std"]
+                     and np.std(self._gyr_n, ddof=1) < pc["stationary_gyro_std"]
+                     and np.mean(self._gyr_n) < pc["stationary_gyro_max"])
         if not still:
             self._still_since = None
         elif self._still_since is None:
@@ -203,8 +247,22 @@ class NavigationEngine:
         if self._still_since is None or t - self._still_since < fc["zupt_min_still_s"]:
             return False
         # Low vibration alone is not proof (a smooth cruise can look still), so a
-        # second, independent IMU-only opinion - MotionNet - must agree.
-        return self.model is not None and self._last_motion < fc["zupt_max_motion_speed"]
+        # second, independent opinion must agree:
+        #   motionnet - the learned speed is low (V1)
+        #   physics   - zero velocity is statistically consistent with the filter's own state
+        #               (2-dof NIS of v_f = v_l = 0 below the 99 % gate and |v_f| small)
+        ml_ok = self.model is not None and self._last_motion < fc["zupt_max_motion_speed"]
+        verifier = fc.get("zupt_verifier", "motionnet")
+        if verifier == "motionnet":
+            return ml_ok
+        P = self.ekf.P[np.ix_([VF, VL], [VF, VL])] + np.eye(2) * (fc["zupt_sigma"] * self.pseudo_scale) ** 2
+        v = self.ekf.s[[VF, VL]]
+        # A quasi-static IMU cannot tell a stop from a slow constant-speed crawl (both are
+        # gravity + vibration), so the stop must also be what the filter's own deceleration
+        # history says: |v_f| small AND known well enough (sigma bound), and v = 0 consistent.
+        phys_ok = (float(v @ np.linalg.solve(P, v)) < 9.21 and abs(v[0]) < fc["zupt_physics_v_max"]
+                   and np.sqrt(self.ekf.P[VF, VF]) < fc.get("zupt_physics_sigma_max", np.inf))
+        return {"physics": phys_ok, "either": ml_ok or phys_ok, "both": ml_ok and phys_ok}[verifier]
 
     def _feed_model(self, f: np.ndarray):
         if self.model is None:
@@ -262,10 +320,14 @@ class NavigationEngine:
     def _dead_reckoning_updates(self, t: float):
         ekf = self.ekf
         ekf.gnss_enabled = False            # any GNSS update from here on raises
-        self._motion_update()
+        if self.phys is None or not self.phys.suppress_ml(t):
+            self._motion_update()
         if self.variant.use_nhc and self.fc["zupt"] and self._is_stopped(t):
             ekf.update_zupt(self.fc["zupt_sigma"] * self.pseudo_scale)
-            if self.fc["zaru"] and self.variant.estimate_bias and self.n % self.decim == 0:
+            period = self.fc.get("zaru_period_s", 0.0)
+            if (self.fc["zaru"] and self.variant.estimate_bias and self.n % self.decim == 0
+                    and t - self._last_zaru_t >= period - 1e-9):
+                self._last_zaru_t = t
                 # The EKF integrates om = w_u - b_g with w_u already calibration-corrected,
                 # so b_g is the *residual* bias and a stopped car reads w_u = b_g. Adding the
                 # calibration bias back (V1) made parked cars turn at -gyro_bias[2] rad/s.
@@ -276,6 +338,8 @@ class NavigationEngine:
                 # Road azimuth is only trusted as a (weak) heading measurement for a
                 # confident match: several linked matches in a row and a low score.
                 confident = m.streak >= self.mc["heading_min_streak"] and m.score <= self.mc["heading_max_score"]
+                if self.phys is not None and self.phys.disable_map_heading:
+                    confident = False       # turn_angle uses road azimuths; never both (same information)
                 ekf.update_road(m.px, m.py, m.road_yaw, self.mc["sigma_across_m"],
                                 np.deg2rad(self.mc["heading_sigma_deg"]) if confident else None)
 

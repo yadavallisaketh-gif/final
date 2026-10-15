@@ -93,6 +93,7 @@ class EKF2D:
         self.al_last = 0.0
         self.gnss_enabled = True
         self.log: list[UpdateRecord] = []
+        self.clone: dict | None = None   # stochastic clone of a past yaw (turn-angle observation)
 
     # ------------------------------------------------------------------ init
     def initialise(self, t: float, x: float, y: float, speed: float, yaw: float, pos_std: float = 3.0):
@@ -105,6 +106,7 @@ class EKF2D:
                           fc["bg_prior_sigma"] ** 2, fc["bl_prior_sigma"] ** 2, rx_var, bv_var])
         if not self.estimate_bias:
             self.P[BA, BA] = self.P[BG, BG] = self.P[BL, BL] = 0.0
+        self.clone = None
 
     # ------------------------------------------------------------------ predict
     def predict(self, t: float, a_f: float, a_l: float, w: float):
@@ -161,13 +163,17 @@ class EKF2D:
             F[VF, BA] = F[VF, BG] = F[VL, BG] = F[YAW, BG] = F[VL, BL] = 0.0
             q[BA] = q[BG] = q[BL] = 0.0
         self.P = F @ self.P @ F.T + np.diag(q)
+        if self.clone is not None:      # a cloned past yaw is constant: cov(x_k+1, c) = F cov(x_k, c)
+            self.clone["Pxc"] = F @ self.clone["Pxc"]
 
     # ------------------------------------------------------------------ update core
     def _update(self, source: str, innov: np.ndarray, H: np.ndarray, R: np.ndarray, gate: float | None,
-                frozen: tuple = ()) -> bool:
+                frozen: tuple = (), h_clone: np.ndarray | None = None) -> bool:
         innov = np.atleast_1d(innov).astype(float)
         H = np.atleast_2d(H)
         R = np.atleast_2d(R)
+        if self.clone is not None:
+            return self._update_augmented(source, innov, H, R, gate, frozen, h_clone)
         S = H @ self.P @ H.T + R
         Sinv = np.linalg.inv(S)
         nis = float(innov @ Sinv @ innov)
@@ -303,6 +309,119 @@ class EKF2D:
             self._update("map_heading", np.array([wrap(road_yaw - self.s[YAW])]), Hh,
                          np.array([[sigma_heading ** 2]]), CHI2_999[1])
         return ok
+
+    # ------------------------------------------------------------------ physics-first observations
+    # Derivations, assumptions and validity conditions: docs/PHYSICS_OBSERVABILITY.md.
+    # Every method only builds h(s), H and R; *when* an observation is valid is decided by
+    # constraints/physics_obs.py, which also prevents the same sensor data being used twice.
+    def update_turn_speed(self, a_l: float, w: float, w_dot: float, k: float, sigma_a: float,
+                          sigma_w: float, sigma_k: float, gate: float | None) -> bool:
+        """Centripetal speed: gravity-compensated lateral acceleration at the phone.
+
+        Rear axle has forward speed v_f and no sideslip; the phone sits r_x ahead, so
+            a_l,phone = (w - b_g) v_f + w_dot r_x                    (rigid-body kinematics)
+        and the levelled, calibrated accelerometer reads  z = k a_l,phone + b_l + n,
+        with k the centripetal scale fitted against GNSS before the blackout (accelerometer
+        scale and body-roll gravity leakage). Jacobian:
+            dh/dv_f = k (w - b_g),  dh/db_g = -k v_f,  dh/db_l = 1,  dh/dr_x = k w_dot.
+        R = sigma_a^2 + (k v_f sigma_w)^2 + (sigma_k (w - b_g) v_f)^2: accelerometer noise,
+        gyro noise mapped through v_f, and the uncertainty of the scale k.
+        """
+        om, vf, rx = w - self.s[BG], self.s[VF], self.s[RX]
+        H = np.zeros((1, N))
+        H[0, VF], H[0, BG], H[0, BL], H[0, RX] = k * om, -k * vf, 1.0, k * w_dot
+        h = k * (om * vf + w_dot * rx) + self.s[BL]
+        R = sigma_a ** 2 + (k * vf * sigma_w) ** 2 + (sigma_k * om * vf) ** 2
+        frozen = self._dr_frozen() if not self.gnss_enabled else ()
+        return self._update("turn_speed", np.array([a_l - h]), H, np.array([[R]]), gate, frozen)
+
+    def update_lean_speed(self, a_c: float, omega: float, sigma: float, gate: float | None) -> bool:
+        """Two-wheeler coordinated turn (experimental): |f|^2 = g^2 + (v w)^2, frame-free.
+
+        z = a_c = sqrt(|f|^2 - g^2) (centripetal magnitude), h = v_f * omega with omega the
+        turn-rate magnitude |w_phone - b| (lean-invariant). dh/dv_f = omega. sigma is the
+        propagated std of z, including the turn-rate term.
+        """
+        H = np.zeros((1, N))
+        H[0, VF] = omega
+        frozen = self._dr_frozen() if not self.gnss_enabled else ()
+        return self._update("lean_speed", np.array([a_c - omega * self.s[VF]]), H, np.array([[sigma ** 2]]),
+                            gate, frozen)
+
+    def update_along_track(self, dx: float, dy: float, ux: float, uy: float, sigma: float,
+                           gate: float | None) -> bool:
+        """Map-derived distance: the along-road component (unit u) of a position correction.
+
+        The anchor fixes where on the road the car is; only u . p is observed, so it never
+        repeats the cross-track information of update_road. innov = u . (dx, dy).
+        """
+        H = np.zeros((1, N))
+        H[0, X], H[0, Y] = ux, uy
+        return self._update("map_along", np.array([ux * dx + uy * dy]), H, np.array([[sigma ** 2]]), gate,
+                            self._dr_frozen())
+
+    def update_speed_obs(self, speed: float, std: float, source: str, gate: float | None = None) -> bool:
+        """A direct physical speed observation z = v_f (bump pair). No b_v term: not MotionNet."""
+        H = np.zeros((1, N))
+        H[0, VF] = 1.0
+        frozen = self._dr_frozen() if not self.gnss_enabled else ()
+        return self._update(source, np.array([speed - self.s[VF]]), H, np.array([[std ** 2]]), gate, frozen)
+
+    # stochastic cloning: an observation of the heading *change* since a past epoch
+    def start_yaw_clone(self):
+        """Clone the current yaw: c = yaw, with its full cross-covariance to the state."""
+        self.clone = {"c": float(self.s[YAW]), "Pxc": self.P[:, YAW].copy(), "Pcc": float(self.P[YAW, YAW]),
+                      "t": self.t}
+
+    def drop_clone(self):
+        self.clone = None
+
+    def update_heading_change(self, dpsi: float, sigma: float, frozen: tuple = (), gate: float | None = None) -> bool:
+        """Turn-angle observation: z = road azimuth change, h = yaw - c (c = cloned yaw).
+
+        Because c and the current yaw are correlated through the shared history, the
+        update correctly attributes the residual to the gyro bias accumulated since the
+        clone (P[yaw, b_g] grows as -T P_bg), not to the absolute heading.
+        """
+        if self.clone is None:
+            raise RuntimeError("update_heading_change needs start_yaw_clone first")
+        H = np.zeros((1, N))
+        H[0, YAW] = 1.0
+        innov = wrap(dpsi - wrap(self.s[YAW] - self.clone["c"]))
+        return self._update("turn_angle", np.array([innov]), H, np.array([[sigma ** 2]]), gate, frozen,
+                            h_clone=np.array([-1.0]))
+
+    def _update_augmented(self, source, innov, H, R, gate, frozen, h_clone) -> bool:
+        """_update on [state, clone]; identical algebra (Joseph form, frozen rows)."""
+        c = self.clone
+        Pa = np.zeros((N + 1, N + 1))
+        Pa[:N, :N], Pa[:N, N], Pa[N, :N], Pa[N, N] = self.P, c["Pxc"], c["Pxc"], c["Pcc"]
+        Ha = np.zeros((H.shape[0], N + 1))
+        Ha[:, :N] = H
+        if h_clone is not None:
+            Ha[:, N] = h_clone
+        S = Ha @ Pa @ Ha.T + R
+        Sinv = np.linalg.inv(S)
+        nis = float(innov @ Sinv @ innov)
+        if gate is not None and nis > gate:
+            self.log.append(UpdateRecord(self.t, source, False, nis))
+            return False
+        K = Pa @ Ha.T @ Sinv
+        if not self.gnss_enabled and self.fc.get("freeze_accel_bias_in_dr", False):
+            frozen = tuple(frozen) + (BA,)
+        if frozen:
+            K[list(frozen), :] = 0.0
+        d = K @ innov
+        self.s += d[:N]
+        self.s[YAW] = wrap(self.s[YAW])
+        c["c"] = float(c["c"] + d[N])
+        I_KH = np.eye(N + 1) - K @ Ha
+        Pa = I_KH @ Pa @ I_KH.T + K @ R @ K.T
+        self.P, c["Pxc"], c["Pcc"] = Pa[:N, :N], Pa[:N, N].copy(), float(Pa[N, N])
+        if not self.estimate_bias:
+            self.s[BA] = self.s[BG] = self.s[BL] = 0.0
+        self.log.append(UpdateRecord(self.t, source, True, nis))
+        return True
 
     # ------------------------------------------------------------------ helpers
     @property

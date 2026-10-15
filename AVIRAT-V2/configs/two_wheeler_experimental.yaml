@@ -1,0 +1,23 @@
+# EXPERIMENTAL two-wheeler profile (synthetic validation only; IO-VNBD has no two-wheeler data).
+# docs/PHYSICS_OBSERVABILITY.md sections 3.6 and 7.
+#
+# A leaning vehicle breaks the car assumptions: in a coordinated turn the specific force stays in
+# the lean plane, so the levelled lateral acceleration is ~0 and turn_speed is invalid (and
+# mutually exclusive with lean_speed). The frame-free lean observation
+#   a_c = sqrt(|f|^2 - g^2) = v * |w|
+# needs |f| to ~0.1 %; on synthetic phones it *degraded* drift (9 % -> 20 % median), so it is
+# provided here but left OFF. Set physics.lean_speed.enabled=true to study it.
+#
+# The tight NHC is kept: levelled to the apparent gravity, a coordinated-lean bike still has no
+# lateral velocity (synthetic: 9 % drift vs 26 % with the soft sigma = 1.0 V1 suggested).
+inherit: base.yaml
+
+filter:
+  nhc_sigma: 0.15
+  lever_arm_x: 0.0          # phone on the handlebar / tank: close to the steering axis
+
+physics:
+  turn_speed:
+    enabled: false
+  lean_speed:
+    enabled: false

@@ -1,0 +1,34 @@
+{
+ "car profile": {
+  "drift_med": 11.03,
+  "drift_mean": 11.04,
+  "speed_mae": 0.36,
+  "heading_deg": 4.23,
+  "lean_updates": 0.0,
+  "fail_rate": 0.0
+ },
+ "bike profile (lean off)": {
+  "drift_med": 8.84,
+  "drift_mean": 8.86,
+  "speed_mae": 0.23,
+  "heading_deg": 3.78,
+  "lean_updates": 0.0,
+  "fail_rate": 0.0
+ },
+ "bike + lean_speed": {
+  "drift_med": 19.04,
+  "drift_mean": 20.0,
+  "speed_mae": 1.28,
+  "heading_deg": 2.66,
+  "lean_updates": 42.9,
+  "fail_rate": 0.0
+ },
+ "bike soft NHC 1.0": {
+  "drift_med": 25.79,
+  "drift_mean": 25.79,
+  "speed_mae": 5.11,
+  "heading_deg": 0.39,
+  "lean_updates": 0.0,
+  "fail_rate": 1.0
+ }
+}

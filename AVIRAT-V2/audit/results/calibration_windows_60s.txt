@@ -1,0 +1,31 @@
+drive         t   n  corr  valid  n_loose  corr_loose  k_loose  sig_a  lat_corr  fit  g_turns  g_scale  g_valid                       g_reason
+  S3c   300.000 178  0.97   True      178        0.97    0.929   0.50      0.73 0.74        4    1.009     True                               
+  S3c   960.000 620  0.95   True      620        0.95    0.915   0.46      0.79 0.73        2    1.000    False           2 complete turns < 3
+  S3c  1590.000 200  0.98   True      200        0.98    0.923   0.38      0.77 0.72        1    1.000    False           1 complete turns < 3
+  S3c  2280.000  35  0.00  False       35        1.00    1.036   0.24      0.72 0.78        0    1.000    False           0 complete turns < 3
+  S3c  2910.000 276  0.95   True      276        0.95    0.834   0.39      0.69 0.41        2    1.000    False           2 complete turns < 3
+  S3c  3600.000 184  0.98   True      184        0.98    0.880   0.34      0.69 0.57        1    1.000    False           1 complete turns < 3
+Vta16   300.000  83  0.60  False       83        0.60    0.182   0.85     -0.00 0.05        2    1.000    False           2 complete turns < 3
+Vta16   450.000  69  0.70  False       69        0.70    0.394   0.76      0.25 0.07        2    1.000    False           2 complete turns < 3
+Vta16   600.000  78  0.71  False       78        0.71    0.428   0.79      0.18 0.22        1    1.000    False           1 complete turns < 3
+Vta16   720.000  89  0.70  False       89        0.70    0.298   0.77      0.27 0.17        3    1.109    False scale 1.109 outside [0.9, 1.1]
+Vta16   870.000  80  0.81  False       80        0.81    0.252   0.58      0.12 0.18        3    1.102    False scale 1.102 outside [0.9, 1.1]
+Vta16  1020.000  62  0.71  False       62        0.71    0.258   0.76     -0.01 0.17        3    1.043    False   turn residual 24.4 deg > 6.0
+Vfa01   300.000  96  0.83  False       96        0.83    0.297   0.86      0.48 0.46        1    1.000    False           1 complete turns < 3
+Vfa01   450.000  78  0.85  False       78        0.85    0.222   0.70      0.33 0.32        2    1.000    False           2 complete turns < 3
+Vfa01   600.000  76  0.79  False       76        0.79    0.214   0.84      0.46 0.47        4    1.252    False scale 1.252 outside [0.9, 1.1]
+Vfa01   720.000  71  0.74  False       71        0.74    0.195   1.05      0.48 0.49        4    1.086     True                               
+Vfa01   870.000  75  0.66  False       75        0.66    0.180   1.22      0.44 0.47        5    1.085     True                               
+Vfa01  1050.000  74  0.65  False       74        0.65    0.269   1.08      0.31 0.49        6    0.993    False    turn residual 7.4 deg > 6.0
+   S1   300.000 157  0.96   True      157        0.96    0.898   0.59      0.92 0.61        3    0.950     True                               
+   S1  1230.000 108  0.86   True      108        0.86    0.883   0.60      0.67 0.76        2    1.000    False           2 complete turns < 3
+   S1  2130.000 113  0.94   True      113        0.94    1.068   0.59      0.58 0.54        5    0.987     True                               
+   S1  3060.000 103  0.92   True      103        0.92    0.837   0.67      0.74 0.80        1    1.000    False           1 complete turns < 3
+   S1  3960.000  96  0.89  False       96        0.89    0.759   0.64      0.66 0.76        2    1.000    False           2 complete turns < 3
+   S1  5040.000  43  0.00  False       43        0.91    0.743   0.58      0.72 0.83        1    1.000    False           1 complete turns < 3
+    M   300.000 706  0.96   True      706        0.96    0.968   0.35      0.99 0.94        0    1.000    False           0 complete turns < 3
+    M  2130.000 154  0.96   True      154        0.96    0.933   0.52      0.91 0.90        5    0.969     True                               
+    M  4140.000  46  0.00  False       46        0.96    0.869   0.54      0.90 0.90        1    1.000    False           1 complete turns < 3
+    M  6789.124 229  0.98   True      229        0.98    1.020   0.35      0.96 0.88        1    1.000    False           1 complete turns < 3
+    M  8649.124  87  0.99   True       87        0.99    1.076   0.29      0.96 0.95        2    1.000    False           2 complete turns < 3
+    M 10479.124 236  0.98   True      236        0.98    0.943   0.40      0.92 0.63        5    0.977     True                               

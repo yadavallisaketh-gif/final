@@ -142,6 +142,18 @@ filter:
   freeze_accel_bias_in_dr: false    # true: clamp b_a for *every* update while GNSS is denied
                                     # (NHC/MotionNet/ZUPT already freeze it via freeze_bias_in_dr)
   display_blend_s: 3.0              # displayed position eases onto GNSS corrections over ~this time
+  # --- V2 physics-first stop handling (defaults = V2.1 behaviour) ---
+  zupt_verifier: motionnet          # motionnet | physics | either | both  (who confirms an IMU-detected stop)
+  zupt_physics_v_max: 1.0           # m/s: physics verifier also needs |v_f| below this ...
+  zupt_physics_sigma_max: 0.8       # ... and the filter's speed std below this (no false stops at a crawl)
+  still_detector: raw               # raw (V1 rolling std) | smoothed (idle-robust: stability of 1 s means)
+  still_smoothed_mean_s: 2.0        # smoothed detector: mean over this window ...
+  still_smoothed_span_s: 3.0        # ... whose vector must stay stable over this span
+  still_smoothed_acc_ptp: 0.5       # m/s^2 |ptp| of the mean acceleration vector (quasi-static only: a
+                                    # constant-speed cruise also passes, so the verifier must reject it)
+  still_smoothed_gyro_ptp: 0.03     # rad/s |ptp| of the mean angular-rate vector
+  still_exit_acc: 0.3               # m/s^2 |mean a_f| over 0.5 s that ends a smoothed stop immediately
+  zaru_period_s: 0.0                # 0 = every sample (V1); 1.0 = one ZARU per independent 1 s mean
 
 anomaly:
   enabled: true
@@ -182,3 +194,70 @@ evaluate:
   min_distance_m: 100               # skip windows where the car barely moves
   max_stationary_frac: 0.5
   output_dir: outputs
+
+# Physics-first speed / heading observations (constraints/physics_obs.py,
+# docs/PHYSICS_OBSERVABILITY.md). Every one is OFF until validation shows a benefit.
+physics:
+  turn_speed:                       # a_l = k (w v + w_dot r_x) + b_l  ->  v in turns
+    enabled: false
+    update_hz: 2.0                  # block-averaged updates (low-pass + model errors are correlated)
+    w_min: 0.10                     # rad/s: below this v = a_l / w is ill-conditioned
+    w_dot_max: 0.05                 # rad/s^2: reject turn entry / exit transients (sideslip build-up)
+    a_slip: 4.0                     # m/s^2: beyond the linear-tyre range (slip, rollover risk)
+    a_brake: 2.0                    # m/s^2 |a_f|: combined braking + cornering (load transfer)
+    v_min: 3.0                      # m/s filter speed
+    sigma_w: 0.01                   # rad/s yaw-rate noise in R
+    sigma_k_floor: 0.03             # minimum uncertainty of the centripetal scale
+    sigma_a_floor: 0.15             # m/s^2
+    calib_min_samples: 60           # steady-turn samples (10 Hz) in the pre-blackout segment; sigma_k ~ 0.03
+    calib_w_dot_max: 0.10           # rad/s^2 calibration gate (GNSS speed is known, so a looser gate is safe)
+    calib_min_corr: 0.8             # validity: a_l must track w * v_gnss before the blackout
+    k_min: 0.8
+    k_max: 1.2
+    ml_overlap: skip_ml             # skip_ml: no MotionNet update in a valid turn context | both
+  gyro_turn_cal:                    # turn-angle gyro scale from pre-blackout GNSS turns
+    enabled: false
+    straight_rate: 0.03             # rad/s GNSS course rate that counts as straight
+    straight_s: 2.0
+    min_turn_deg: 30.0
+    max_turn_s: 30.0
+    min_turns: 3
+    scale_min: 0.9
+    scale_max: 1.1
+    max_resid_deg: 6.0
+  turn_track:                       # shared turn detector for turn_angle and map_anchor
+    straight_rate: 0.03
+    exit_straight_s: 2.0
+    min_turn_deg: 45.0
+    max_turn_deg: 150.0
+    max_turn_s: 25.0
+    road_radius_m: 25.0
+    road_heading_tol_deg: 15.0
+    max_lateral_spread_m: 6.0       # parallel mapped roads further apart than this -> ambiguous, skip
+  turn_angle:                       # map road-azimuth change over a turn -> gyro bias (stochastic clone)
+    enabled: false
+    road_az_sigma_deg: 3.0
+    scale_sigma: 0.02
+  map_anchor:                       # along-road position from a mapped corner
+    enabled: false
+    map_sigma_m: 5.0
+    inset_rel_sigma: 0.3
+    max_corner_dist_m: 30.0
+    max_age_s: 10.0
+  bump_pair:                        # v = wheelbase / dt between front and rear axle impulses
+    enabled: false
+    min_rate_hz: 100.0              # refuses to run below this (10 Hz IO-VNBD: infeasible)
+    wheelbase_m: 2.7
+    wheelbase_sigma_m: 0.05
+    peak_thr: 2.0                   # m/s^2 high-passed vertical acceleration
+    v_min: 3.0
+    v_max: 35.0
+    max_rel_err: 0.1
+  lean_speed:                       # two-wheeler coordinated lean (configs/two_wheeler_experimental.yaml)
+    enabled: false
+    w_min: 0.12
+    a_min: 1.5                      # m/s^2 centripetal (lean >= 9 deg)
+    w_ptp_max: 0.05                 # rad/s within a block: steady turn only
+    v_min: 3.0
+    sigma_f: 0.15                   # m/s^2 noise of the block-mean |f|
+    sigma_w: 0.01

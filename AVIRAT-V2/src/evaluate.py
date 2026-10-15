@@ -32,6 +32,7 @@ from .anomaly_detector import AnomalyDetector
 from .blackout import apply_blackout, make_blackout_windows, segment_for_window
 from .config import load_config
 from .constraints.map_match import MapMatcher, RoadNetwork
+from .constraints.physics_obs import physics_calibration
 from .data_io import latlon_to_local, load_drive
 from .dataset import check_split
 from .engine import VARIANTS, NavigationEngine
@@ -62,9 +63,13 @@ def build_network(cfg: dict, origin: tuple[float, float], exclude: set[str]) -> 
     return RoadNetwork.from_traces(traces, mc["trace_spacing_m"])
 
 
+def calibration_frame(est_df: pd.DataFrame, t_start: float, cfg: dict) -> pd.DataFrame:
+    """Pre-blackout data only: everything calibrated from it may legitimately use GNSS."""
+    return est_df[(est_df["t"] < t_start) & (est_df["t"] >= t_start - cfg["preprocess"]["calib_max_s"])]
+
+
 def calibration_alignment(est_df: pd.DataFrame, t_start: float, cfg: dict):
-    calib = est_df[(est_df["t"] < t_start) & (est_df["t"] >= t_start - cfg["preprocess"]["calib_max_s"])]
-    return fit_alignment(calib, cfg)
+    return fit_alignment(calibration_frame(est_df, t_start, cfg), cfg)
 
 
 def run_window(cfg, drive, w, variants, model, network):
@@ -72,6 +77,7 @@ def run_window(cfg, drive, w, variants, model, network):
     est, truth = apply_blackout(seg, w)
     est_df = est.df
     al = calibration_alignment(est_df, w.t_start, cfg)
+    phys = physics_calibration(calibration_frame(est_df, w.t_start, cfg), al, cfg)   # None unless enabled
     rate = 1.0 / np.median(np.diff(est_df["t"].to_numpy()))
     rows, trajs = [], {}
     for key in variants:
@@ -79,7 +85,7 @@ def run_window(cfg, drive, w, variants, model, network):
         matcher = MapMatcher(network, cfg) if v.use_map and network is not None and len(network) else None
         if v.use_map and matcher is None:
             continue
-        eng = NavigationEngine(cfg, al, v, rate, model if v.use_motion else None, matcher)
+        eng = NavigationEngine(cfg, al, v, rate, model if v.use_motion else None, matcher, phys)
         t0 = time.perf_counter()
         traj = eng.run(ReplaySource(est))
         wall = time.perf_counter() - t0

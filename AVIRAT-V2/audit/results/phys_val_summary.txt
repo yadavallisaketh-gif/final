@@ -1,0 +1,18 @@
+base       C+NHC    med {30.0: 17.48, 60.0: 26.16, 120.0: 28.69} mean60 31.6 spdMAE 3.38 hdg 23.4 fail>50% 0.11 | better 0 worse 0 of 54 zupt 17.4/win
+base       D        med {30.0: 16.51, 60.0: 25.0, 120.0: 23.95} mean60 29.3 spdMAE 3.39 hdg 21.8 fail>50% 0.11 | better 0 worse 0 of 54 zupt 17.4/win
+base       INS+NHC  med {30.0: 41.13, 60.0: 51.83, 120.0: 91.53} mean60 54.3 spdMAE 6.76 hdg 27.4 fail>50% 0.57 | better 0 worse 0 of 54
+turn2      C+NHC    med {30.0: 17.33, 60.0: 26.09, 120.0: 28.69} mean60 31.6 spdMAE 3.37 hdg 23.5 fail>50% 0.11 | better 9 worse 6 of 54 turn_speed 2.2/win zupt 17.4/win
+turn2      D        med {30.0: 16.41, 60.0: 25.0, 120.0: 23.86} mean60 29.3 spdMAE 3.39 hdg 22.1 fail>50% 0.11 | better 9 worse 6 of 54 turn_speed 2.3/win zupt 17.4/win
+turn2      INS+NHC  med {30.0: 41.13, 60.0: 51.83, 120.0: 90.62} mean60 53.7 spdMAE 6.76 hdg 27.4 fail>50% 0.57 | better 9 worse 4 of 54 turn_speed 1.4/win
+turn2both  C+NHC    med {30.0: 17.5, 60.0: 26.02, 120.0: 28.71} mean60 31.6 spdMAE 3.38 hdg 23.4 fail>50% 0.11 | better 7 worse 8 of 54 turn_speed 2.2/win zupt 17.4/win
+turn2both  D        med {30.0: 16.59, 60.0: 25.0, 120.0: 24.27} mean60 29.3 spdMAE 3.39 hdg 21.8 fail>50% 0.11 | better 7 worse 8 of 54 turn_speed 2.3/win zupt 17.4/win
+turn2both  INS+NHC  med {30.0: 41.13, 60.0: 51.83, 120.0: 90.62} mean60 53.7 spdMAE 6.76 hdg 27.4 fail>50% 0.57 | better 9 worse 4 of 54 turn_speed 1.4/win
+gyro       C+NHC    med {30.0: 17.39, 60.0: 26.16, 120.0: 28.69} mean60 31.8 spdMAE 3.39 hdg 24.6 fail>50% 0.11 | better 6 worse 4 of 54 zupt 17.4/win
+gyro       D        med {30.0: 16.43, 60.0: 25.0, 120.0: 23.95} mean60 29.5 spdMAE 3.39 hdg 21.8 fail>50% 0.11 | better 6 worse 4 of 54 zupt 17.4/win
+gyro       INS+NHC  med {30.0: 41.13, 60.0: 51.1, 120.0: 100.47} mean60 54.7 spdMAE 6.76 hdg 26.8 fail>50% 0.57 | better 2 worse 8 of 54
+stop       C+NHC    med {30.0: 17.48, 60.0: 26.16, 120.0: 33.01} mean60 31.6 spdMAE 3.38 hdg 24.6 fail>50% 0.13 | better 6 worse 5 of 54 zupt 3.8/win
+stop       D        med {30.0: 16.51, 60.0: 25.0, 120.0: 27.25} mean60 29.3 spdMAE 3.39 hdg 21.4 fail>50% 0.13 | better 7 worse 4 of 54 zupt 3.8/win
+stop       INS+NHC  med {30.0: 41.13, 60.0: 51.83, 120.0: 91.53} mean60 54.3 spdMAE 6.76 hdg 27.4 fail>50% 0.57 | better 0 worse 1 of 54 zupt 0.0/win
+map        C+NHC    med {30.0: 17.48, 60.0: 26.16, 120.0: 28.69} mean60 31.6 spdMAE 3.38 hdg 23.4 fail>50% 0.11 | better 0 worse 0 of 54 zupt 17.4/win
+map        D        med {30.0: 16.51, 60.0: 25.0, 120.0: 28.02} mean60 30.2 spdMAE 3.39 hdg 21.4 fail>50% 0.11 | better 7 worse 6 of 54 zupt 17.4/win
+map        INS+NHC  med {30.0: 41.13, 60.0: 51.83, 120.0: 91.53} mean60 54.3 spdMAE 6.76 hdg 27.4 fail>50% 0.57 | better 0 worse 0 of 54
