@@ -1,0 +1,123 @@
+{
+  "arch": "msgru",
+  "arch_kw": {
+    "hidden": 32,
+    "long_hidden": 16,
+    "short": 50,
+    "pool": 10,
+    "acc": true,
+    "ctx": true
+  },
+  "features": [
+    "a_f",
+    "a_l",
+    "a_u",
+    "w_u",
+    "w_h",
+    "e_acc",
+    "e_gyr"
+  ],
+  "window": 600,
+  "loss": "beta_nll",
+  "balance": true,
+  "aug": {
+    "rot_deg": 5.0,
+    "tilt_deg": 1.5,
+    "gain": 0.05,
+    "e_shift": 0.5
+  },
+  "note": "B2 + mount / device augmentation",
+  "name": "B3",
+  "fold": "official",
+  "seed": 7,
+  "history": [
+    {
+      "epoch": 1,
+      "loss": 7.066079458084107,
+      "val_rmse": 8.300041198730469,
+      "seconds": 18.1
+    },
+    {
+      "epoch": 2,
+      "loss": 3.2645031759643555,
+      "val_rmse": 7.030630111694336,
+      "seconds": 18.2
+    },
+    {
+      "epoch": 3,
+      "loss": 8.763237021636963,
+      "val_rmse": 6.732532024383545,
+      "seconds": 18.2
+    },
+    {
+      "epoch": 4,
+      "loss": 7.356544526519776,
+      "val_rmse": 6.812408924102783,
+      "seconds": 18.8
+    },
+    {
+      "epoch": 5,
+      "loss": 6.830879974060059,
+      "val_rmse": 6.698489665985107,
+      "seconds": 18.5
+    },
+    {
+      "epoch": 6,
+      "loss": 6.414165939636231,
+      "val_rmse": 6.229947090148926,
+      "seconds": 20.1
+    },
+    {
+      "epoch": 7,
+      "loss": 6.183195789184571,
+      "val_rmse": 6.393031120300293,
+      "seconds": 17.4
+    },
+    {
+      "epoch": 8,
+      "loss": 6.063490011138916,
+      "val_rmse": 6.204680442810059,
+      "seconds": 49.4
+    },
+    {
+      "epoch": 9,
+      "loss": 5.94307935760498,
+      "val_rmse": 6.292891979217529,
+      "seconds": 17.2
+    },
+    {
+      "epoch": 10,
+      "loss": 5.908662482147217,
+      "val_rmse": 6.242185592651367,
+      "seconds": 18.1
+    }
+  ],
+  "best_epoch": 8,
+  "sigma_scale": 1.6499954462051392,
+  "acc_sigma_scale": 1.3785454034805298,
+  "params": 7001,
+  "train_drives": [
+    "S2",
+    "S3a",
+    "S3b",
+    "S4",
+    "Vw4",
+    "Vw2",
+    "Vfa02",
+    "Vta1a",
+    "Vw14c",
+    "Vta2",
+    "Vw11",
+    "Vta28",
+    "Vta8",
+    "Vw3",
+    "Vta30",
+    "Vta29"
+  ],
+  "val_drives": [
+    "S3c",
+    "Vta16",
+    "Vfa01"
+  ],
+  "normalisation": "fitted on training windows only"
+}

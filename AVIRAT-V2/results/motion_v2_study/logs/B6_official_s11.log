@@ -1,0 +1,12 @@
+B1 on fold official: 425267 train / 49180 val windows
+[B1] epoch 1 loss 5.739 val RMSE 4.572 (15s)
+[B1] epoch 2 loss 2.373 val RMSE 4.860 (15s)
+[B1] epoch 3 loss 1.722 val RMSE 5.343 (16s)
+[B1] epoch 4 loss 1.544 val RMSE 5.526 (15s)
+[B1] epoch 5 loss 1.478 val RMSE 5.296 (15s)
+[B1] epoch 6 loss 1.432 val RMSE 5.382 (16s)
+[B1] epoch 7 loss 1.408 val RMSE 5.058 (15s)
+[B1] epoch 8 loss 1.383 val RMSE 5.133 (15s)
+[B1] epoch 9 loss 1.372 val RMSE 5.273 (15s)
+[B1] epoch 10 loss 1.359 val RMSE 5.287 (15s)
+saved /tmp/claude-0/-home-user-final/ad96db08-fb84-5347-ab3c-569ecffef14c/scratchpad/ml/models/B1_official_s11.pt {"best_epoch": 7, "sigma_scale": 2.5891571044921875, "params": 7289}

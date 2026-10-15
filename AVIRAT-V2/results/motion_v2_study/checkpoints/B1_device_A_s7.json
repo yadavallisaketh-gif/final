@@ -1,0 +1,109 @@
+{
+  "arch": "msgru",
+  "arch_kw": {
+    "hidden": 32,
+    "long_hidden": 16,
+    "short": 50,
+    "pool": 10,
+    "acc": true,
+    "ctx": true
+  },
+  "features": [
+    "a_f",
+    "a_l",
+    "a_u",
+    "w_u",
+    "w_h",
+    "e_acc",
+    "e_gyr"
+  ],
+  "window": 600,
+  "loss": "nll",
+  "balance": false,
+  "aug": {
+    "rot_deg": 0.0,
+    "tilt_deg": 0.0,
+    "gain": 0.0,
+    "e_shift": 0.0
+  },
+  "note": "compact multi-scale GRU (5 s @ 10 Hz + 60 s @ 1 Hz), multi-head",
+  "name": "B1",
+  "fold": "device_A",
+  "seed": 7,
+  "history": [
+    {
+      "epoch": 1,
+      "loss": 6.942786665267945,
+      "val_rmse": 7.115246295928955,
+      "seconds": 18.4
+    },
+    {
+      "epoch": 2,
+      "loss": 2.7311521736907958,
+      "val_rmse": 6.13249397277832,
+      "seconds": 17.3
+    },
+    {
+      "epoch": 3,
+      "loss": 1.8845662049484253,
+      "val_rmse": 6.077901840209961,
+      "seconds": 16.6
+    },
+    {
+      "epoch": 4,
+      "loss": 1.674901699104309,
+      "val_rmse": 5.541947841644287,
+      "seconds": 17.8
+    },
+    {
+      "epoch": 5,
+      "loss": 1.6159204331207275,
+      "val_rmse": 6.4969377517700195,
+      "seconds": 16.4
+    },
+    {
+      "epoch": 6,
+      "loss": 1.565941697807312,
+      "val_rmse": 6.0730977058410645,
+      "seconds": 17.8
+    },
+    {
+      "epoch": 7,
+      "loss": 1.5271884674835206,
+      "val_rmse": 6.221898078918457,
+      "seconds": 17.8
+    }
+  ],
+  "energy_offset_prior": [
+    -0.7548494338989258,
+    -4.545312881469727
+  ],
+  "best_epoch": 4,
+  "sigma_scale": 2.750964879989624,
+  "acc_sigma_scale": 1.2028173208236694,
+  "params": 7001,
+  "train_drives": [
+    "Vw4",
+    "Vw2",
+    "Vfa02",
+    "Vta1a",
+    "Vw14c",
+    "Vta2",
+    "Vw11",
+    "Vta28",
+    "Vta8",
+    "Vw3",
+    "Vta30",
+    "Vta29",
+    "Vta16",
+    "Vfa01"
+  ],
+  "val_drives": [
+    "S2",
+    "S3a",
+    "S3b",
+    "S4",
+    "S3c"
+  ],
+  "normalisation": "fitted on training windows only"
+}

@@ -1,0 +1,109 @@
+{
+  "arch": "msgru",
+  "arch_kw": {
+    "hidden": 32,
+    "long_hidden": 16,
+    "short": 50,
+    "pool": 10,
+    "acc": true,
+    "ctx": true
+  },
+  "features": [
+    "a_f",
+    "a_l",
+    "a_u",
+    "w_u",
+    "w_h",
+    "e_acc_n",
+    "e_gyr_n"
+  ],
+  "window": 600,
+  "loss": "nll",
+  "balance": false,
+  "aug": {
+    "rot_deg": 0.0,
+    "tilt_deg": 0.0,
+    "gain": 0.0,
+    "e_shift": 0.0
+  },
+  "note": "B1 with device-normalised vibration energy (calibration-segment offset)",
+  "name": "B4",
+  "fold": "device_A",
+  "seed": 7,
+  "history": [
+    {
+      "epoch": 1,
+      "loss": 6.9888930806732175,
+      "val_rmse": 4.458899974822998,
+      "seconds": 18.1
+    },
+    {
+      "epoch": 2,
+      "loss": 2.8657645359802246,
+      "val_rmse": 4.189503192901611,
+      "seconds": 17.8
+    },
+    {
+      "epoch": 3,
+      "loss": 1.9020448265075685,
+      "val_rmse": 4.067596912384033,
+      "seconds": 17.9
+    },
+    {
+      "epoch": 4,
+      "loss": 1.6900711626815796,
+      "val_rmse": 3.9449729919433594,
+      "seconds": 17.9
+    },
+    {
+      "epoch": 5,
+      "loss": 1.635938289680481,
+      "val_rmse": 4.1179351806640625,
+      "seconds": 17.4
+    },
+    {
+      "epoch": 6,
+      "loss": 1.5875617826080322,
+      "val_rmse": 4.243819713592529,
+      "seconds": 18.5
+    },
+    {
+      "epoch": 7,
+      "loss": 1.5512332025527955,
+      "val_rmse": 4.349886417388916,
+      "seconds": 131.4
+    }
+  ],
+  "energy_offset_prior": [
+    -0.7548494338989258,
+    -4.545312881469727
+  ],
+  "best_epoch": 4,
+  "sigma_scale": 1.2730627059936523,
+  "acc_sigma_scale": 0.8577492237091064,
+  "params": 7001,
+  "train_drives": [
+    "Vw4",
+    "Vw2",
+    "Vfa02",
+    "Vta1a",
+    "Vw14c",
+    "Vta2",
+    "Vw11",
+    "Vta28",
+    "Vta8",
+    "Vw3",
+    "Vta30",
+    "Vta29",
+    "Vta16",
+    "Vfa01"
+  ],
+  "val_drives": [
+    "S2",
+    "S3a",
+    "S3b",
+    "S4",
+    "S3c"
+  ],
+  "normalisation": "fitted on training windows only"
+}

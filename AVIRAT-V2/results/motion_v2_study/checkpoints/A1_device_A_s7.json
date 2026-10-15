@@ -1,0 +1,105 @@
+{
+  "arch": "gru",
+  "arch_kw": {
+    "hidden": 64,
+    "short": 50,
+    "acc": false,
+    "ctx": false
+  },
+  "features": [
+    "a_f",
+    "a_l",
+    "a_u",
+    "w_u",
+    "w_h"
+  ],
+  "window": 50,
+  "loss": "nll",
+  "balance": false,
+  "aug": {
+    "rot_deg": 0.0,
+    "tilt_deg": 0.0,
+    "gain": 0.0,
+    "e_shift": 0.0
+  },
+  "note": "V1 architecture + recipe, causal features",
+  "name": "A1",
+  "fold": "device_A",
+  "seed": 7,
+  "history": [
+    {
+      "epoch": 1,
+      "loss": 7.175840730285644,
+      "val_rmse": 8.539597511291504,
+      "seconds": 10.7
+    },
+    {
+      "epoch": 2,
+      "loss": 3.6926406507110596,
+      "val_rmse": 8.156719207763672,
+      "seconds": 10.7
+    },
+    {
+      "epoch": 3,
+      "loss": 2.113631953125,
+      "val_rmse": 7.565031051635742,
+      "seconds": 13.4
+    },
+    {
+      "epoch": 4,
+      "loss": 1.8942837601089477,
+      "val_rmse": 7.409445762634277,
+      "seconds": 11.4
+    },
+    {
+      "epoch": 5,
+      "loss": 1.85399898979187,
+      "val_rmse": 7.748866558074951,
+      "seconds": 11.5
+    },
+    {
+      "epoch": 6,
+      "loss": 1.8102492389297484,
+      "val_rmse": 7.492963790893555,
+      "seconds": 11.5
+    },
+    {
+      "epoch": 7,
+      "loss": 1.7926814101409911,
+      "val_rmse": 7.62236213684082,
+      "seconds": 11.3
+    }
+  ],
+  "energy_offset_prior": [
+    -0.7548494338989258,
+    -4.545312881469727
+  ],
+  "best_epoch": 4,
+  "sigma_scale": 7.988995552062988,
+  "acc_sigma_scale": 1.0,
+  "params": 17922,
+  "train_drives": [
+    "Vw4",
+    "Vw2",
+    "Vfa02",
+    "Vta1a",
+    "Vw14c",
+    "Vta2",
+    "Vw11",
+    "Vta28",
+    "Vta8",
+    "Vw3",
+    "Vta30",
+    "Vta29",
+    "Vta16",
+    "Vfa01"
+  ],
+  "val_drives": [
+    "S2",
+    "S3a",
+    "S3b",
+    "S4",
+    "S3c"
+  ],
+  "normalisation": "fitted on training windows only"
+}

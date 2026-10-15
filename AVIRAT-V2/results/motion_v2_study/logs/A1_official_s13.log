@@ -1,0 +1,12 @@
+A1 on fold official: 425267 train / 49180 val windows
+[A1] epoch 1 loss 6.048 val RMSE 10.493 (11s)
+[A1] epoch 2 loss 3.392 val RMSE 8.539 (10s)
+[A1] epoch 3 loss 2.062 val RMSE 7.469 (10s)
+[A1] epoch 4 loss 1.829 val RMSE 7.724 (11s)
+[A1] epoch 5 loss 1.784 val RMSE 6.995 (10s)
+[A1] epoch 6 loss 1.756 val RMSE 6.999 (511s)
+[A1] epoch 7 loss 1.713 val RMSE 7.045 (458s)
+[A1] epoch 8 loss 1.678 val RMSE 6.753 (466s)
+[A1] epoch 9 loss 1.663 val RMSE 6.933 (373s)
+[A1] epoch 10 loss 1.662 val RMSE 6.849 (10s)
+saved /tmp/claude-0/-home-user-final/ad96db08-fb84-5347-ab3c-569ecffef14c/scratchpad/ml/models/A1_official_s13.pt {"best_epoch": 8, "sigma_scale": 2.0911898612976074, "params": 17922}

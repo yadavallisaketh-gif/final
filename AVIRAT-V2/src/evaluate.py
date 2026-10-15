@@ -38,6 +38,16 @@ from .dataset import check_split
 from .engine import VARIANTS, NavigationEngine
 from .metrics import blackout_metrics
 from .models.motion_net import MotionModel
+
+
+def load_motion_model(path: str):
+    """V1 MotionModel or MotionNet v2 checkpoint (models/motion_v2.py), by checkpoint content."""
+    import torch
+    ck = torch.load(path, map_location="cpu", weights_only=False)
+    if ck.get("v2"):
+        from .models.motion_v2 import MotionModelV2
+        return MotionModelV2.load(path)
+    return MotionModel.load(path)
 from .preprocess import fit_alignment
 from .sensors import ReplaySource
 
@@ -85,7 +95,11 @@ def run_window(cfg, drive, w, variants, model, network):
         matcher = MapMatcher(network, cfg) if v.use_map and network is not None and len(network) else None
         if v.use_map and matcher is None:
             continue
-        eng = NavigationEngine(cfg, al, v, rate, model if v.use_motion else None, matcher, phys)
+        offsets = None
+        if v.use_motion and getattr(model, "v2", False):
+            from .models.motion_features import energy_offsets
+            offsets = energy_offsets(calibration_frame(est_df, w.t_start, cfg))
+        eng = NavigationEngine(cfg, al, v, rate, model if v.use_motion else None, matcher, phys, offsets)
         t0 = time.perf_counter()
         traj = eng.run(ReplaySource(est))
         wall = time.perf_counter() - t0
@@ -237,7 +251,7 @@ def main(argv=None):
 
     model = None
     if any(VARIANTS[k].use_motion for k in a.variants):
-        model = MotionModel.load(cfg["model"]["path"])
+        model = load_motion_model(cfg["model"]["path"])
         print(f"MotionNet: {model.kind}, {model.n_params} params, trained on {model.meta.get('split', {}).get('train')}")
     variants = [k for k in a.variants if not (VARIANTS[k].use_map and not cfg["map"]["enabled"])]
 

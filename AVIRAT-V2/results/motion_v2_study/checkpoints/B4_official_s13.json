@@ -1,0 +1,109 @@
+{
+  "arch": "msgru",
+  "arch_kw": {
+    "hidden": 32,
+    "long_hidden": 16,
+    "short": 50,
+    "pool": 10,
+    "acc": true,
+    "ctx": true
+  },
+  "features": [
+    "a_f",
+    "a_l",
+    "a_u",
+    "w_u",
+    "w_h",
+    "e_acc_n",
+    "e_gyr_n"
+  ],
+  "window": 600,
+  "loss": "nll",
+  "balance": false,
+  "aug": {
+    "rot_deg": 0.0,
+    "tilt_deg": 0.0,
+    "gain": 0.0,
+    "e_shift": 0.0
+  },
+  "note": "B1 with device-normalised vibration energy (calibration-segment offset)",
+  "name": "B4",
+  "fold": "official",
+  "seed": 13,
+  "history": [
+    {
+      "epoch": 1,
+      "loss": 6.14534235282898,
+      "val_rmse": 5.3075642585754395,
+      "seconds": 15.6
+    },
+    {
+      "epoch": 2,
+      "loss": 2.457809270248413,
+      "val_rmse": 4.7821221351623535,
+      "seconds": 16.6
+    },
+    {
+      "epoch": 3,
+      "loss": 1.7729475954437255,
+      "val_rmse": 4.526048183441162,
+      "seconds": 15.0
+    },
+    {
+      "epoch": 4,
+      "loss": 1.5636159587097167,
+      "val_rmse": 4.437135696411133,
+      "seconds": 16.1
+    },
+    {
+      "epoch": 5,
+      "loss": 1.5132040939331055,
+      "val_rmse": 4.6731791496276855,
+      "seconds": 15.9
+    },
+    {
+      "epoch": 6,
+      "loss": 1.4735218282318114,
+      "val_rmse": 4.54595422744751,
+      "seconds": 16.2
+    },
+    {
+      "epoch": 7,
+      "loss": 1.439949195098877,
+      "val_rmse": 4.509167194366455,
+      "seconds": 15.1
+    }
+  ],
+  "energy_offset_prior": [
+    -1.1299511194229126,
+    -4.95635986328125
+  ],
+  "best_epoch": 4,
+  "sigma_scale": 1.4318499565124512,
+  "acc_sigma_scale": 1.3832061290740967,
+  "params": 7001,
+  "train_drives": [
+    "S2",
+    "S3a",
+    "S3b",
+    "S4",
+    "Vw4",
+    "Vw2",
+    "Vfa02",
+    "Vta1a",
+    "Vw14c",
+    "Vta2",
+    "Vw11",
+    "Vta28",
+    "Vta8",
+    "Vw3",
+    "Vta30",
+    "Vta29"
+  ],
+  "val_drives": [
+    "S3c",
+    "Vta16",
+    "Vfa01"
+  ],
+  "normalisation": "fitted on training windows only"
+}

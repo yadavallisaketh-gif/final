@@ -1,0 +1,97 @@
+{
+  "arch": "tcn",
+  "arch_kw": {
+    "ch": 24,
+    "k": 3,
+    "acc": true,
+    "ctx": true
+  },
+  "features": [
+    "a_f",
+    "a_l",
+    "a_u",
+    "w_u",
+    "w_h",
+    "e_acc",
+    "e_gyr"
+  ],
+  "window": 600,
+  "loss": "beta_nll",
+  "balance": true,
+  "aug": {
+    "rot_deg": 5.0,
+    "tilt_deg": 1.5,
+    "gain": 0.05,
+    "e_shift": 0.5
+  },
+  "note": "causal depthwise-separable TCN, 51 s receptive field, B3 recipe",
+  "name": "C1",
+  "fold": "official",
+  "seed": 7,
+  "history": [
+    {
+      "epoch": 1,
+      "loss": 7.641482255554199,
+      "val_rmse": 7.613690376281738,
+      "seconds": 231.8
+    },
+    {
+      "epoch": 2,
+      "loss": 4.028429566955566,
+      "val_rmse": 8.041353225708008,
+      "seconds": 217.8
+    },
+    {
+      "epoch": 3,
+      "loss": 12.277519700622559,
+      "val_rmse": 6.538578510284424,
+      "seconds": 76.5
+    },
+    {
+      "epoch": 4,
+      "loss": 10.677666648864745,
+      "val_rmse": 7.097988128662109,
+      "seconds": 75.9
+    },
+    {
+      "epoch": 5,
+      "loss": 10.322327813720703,
+      "val_rmse": 6.835989475250244,
+      "seconds": 74.7
+    },
+    {
+      "epoch": 6,
+      "loss": 9.953238327026368,
+      "val_rmse": 6.9517717361450195,
+      "seconds": 73.4
+    }
+  ],
+  "best_epoch": 3,
+  "sigma_scale": 1.1523538827896118,
+  "acc_sigma_scale": 1.3595166206359863,
+  "params": 6585,
+  "train_drives": [
+    "S2",
+    "S3a",
+    "S3b",
+    "S4",
+    "Vw4",
+    "Vw2",
+    "Vfa02",
+    "Vta1a",
+    "Vw14c",
+    "Vta2",
+    "Vw11",
+    "Vta28",
+    "Vta8",
+    "Vw3",
+    "Vta30",
+    "Vta29"
+  ],
+  "val_drives": [
+    "S3c",
+    "Vta16",
+    "Vfa01"
+  ],
+  "normalisation": "fitted on training windows only"
+}

@@ -55,7 +55,7 @@ MODE_GNSS, MODE_DR, MODE_INIT = "GNSS+INS", "DEAD RECKONING", "WAITING FOR GNSS"
 class NavigationEngine:
     def __init__(self, cfg: dict, alignment: Alignment, variant: Variant, rate_hz: float,
                  motion_model: MotionModel | None = None, matcher: MapMatcher | None = None,
-                 physics: PhysicsCalibration | None = None):
+                 physics: PhysicsCalibration | None = None, motion_offsets: tuple | None = None):
         if variant.use_motion and motion_model is None:
             raise ValueError(f"variant {variant.key} needs a MotionNet model")
         if variant.use_map and matcher is None:
@@ -89,8 +89,18 @@ class NavigationEngine:
         rho = float(np.exp(-(1.0 / cfg["filter"]["motion_update_hz"]) / tau)) if tau > 0 else 0.0
         self.motion_r_inflation = (1.0 + rho) / (1.0 - rho)
         self._acc_block: list[np.ndarray] = []
+        self.fstream = None
         if self.model is not None:
-            self._cols = [FEATURE_COLUMNS.index(f) for f in self.model.features]
+            if getattr(self.model, "v2", False):
+                # MotionNet v2: the same streaming features as in training (motion_features), with
+                # the device-normalisation offsets measured on the pre-blackout calibration segment
+                from .models.motion_features import FeatureStream
+                off = motion_offsets if motion_offsets is not None and np.all(np.isfinite(motion_offsets)) \
+                    else tuple(self.model.meta.get("energy_offset_prior", (np.nan, np.nan)))   # too few moving samples
+                self.fstream = FeatureStream(alignment, cfg, rate_hz, off)
+                self._cols = list(range(len(self.model.features)))
+            else:
+                self._cols = [FEATURE_COLUMNS.index(f) for f in self.model.features]
             self.buffer: deque = deque(maxlen=self.model.window)
         self._last_mode = MODE_INIT
         self._reacq_t: float | None = None
@@ -141,7 +151,7 @@ class NavigationEngine:
         if self.phys is not None:
             w_u = self.phys.correct_yaw_rate(w_u)
         self._w_raw.append(float(f[5]))
-        self._feed_model(f)
+        self._feed_model(f if self.fstream is None else self.fstream.step(s.acc, s.gyro, f)[self.model.cols])
         fix = s.gnss if self.gnss_enabled else None
 
         if not self.initialised:
@@ -306,6 +316,8 @@ class NavigationEngine:
         if self.model is None or len(self.buffer) < self.model.window or self.n % self.motion_every_n:
             return
         mu, sd = self.model.predict(np.asarray(self.buffer))
+        if not (np.isfinite(mu) and np.isfinite(sd)):
+            return                                   # never feed a non-finite pseudo-measurement
         self._last_motion = mu
         if fc.get("motion_sigma_fixed"):
             std = fc["motion_sigma_fixed"]

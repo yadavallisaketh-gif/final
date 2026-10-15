@@ -1,0 +1,127 @@
+{
+  "arch": "msgru",
+  "arch_kw": {
+    "hidden": 32,
+    "long_hidden": 16,
+    "short": 50,
+    "pool": 10,
+    "acc": true,
+    "ctx": true
+  },
+  "features": [
+    "a_f",
+    "a_l",
+    "a_u",
+    "w_u",
+    "w_h",
+    "e_acc_n",
+    "e_gyr_n"
+  ],
+  "window": 600,
+  "loss": "nll",
+  "balance": false,
+  "aug": {
+    "rot_deg": 5.0,
+    "tilt_deg": 1.5,
+    "gain": 0.05,
+    "e_shift": 0.0
+  },
+  "note": "B4 + mount augmentation (no energy shift: offsets are already normalised)",
+  "name": "B5",
+  "fold": "official",
+  "seed": 7,
+  "history": [
+    {
+      "epoch": 1,
+      "loss": 6.106322271347046,
+      "val_rmse": 5.718034744262695,
+      "seconds": 16.1
+    },
+    {
+      "epoch": 2,
+      "loss": 2.689174232406616,
+      "val_rmse": 5.495563983917236,
+      "seconds": 16.1
+    },
+    {
+      "epoch": 3,
+      "loss": 1.8157619192886352,
+      "val_rmse": 5.1647868156433105,
+      "seconds": 16.6
+    },
+    {
+      "epoch": 4,
+      "loss": 1.6268791021728515,
+      "val_rmse": 5.090789318084717,
+      "seconds": 16.9
+    },
+    {
+      "epoch": 5,
+      "loss": 1.5719486238861085,
+      "val_rmse": 4.871204376220703,
+      "seconds": 16.0
+    },
+    {
+      "epoch": 6,
+      "loss": 1.539345393447876,
+      "val_rmse": 4.807948589324951,
+      "seconds": 16.8
+    },
+    {
+      "epoch": 7,
+      "loss": 1.5055741478729248,
+      "val_rmse": 4.612963676452637,
+      "seconds": 17.6
+    },
+    {
+      "epoch": 8,
+      "loss": 1.4969081521224976,
+      "val_rmse": 4.942389965057373,
+      "seconds": 16.7
+    },
+    {
+      "epoch": 9,
+      "loss": 1.477143433380127,
+      "val_rmse": 4.884946346282959,
+      "seconds": 17.2
+    },
+    {
+      "epoch": 10,
+      "loss": 1.4701696906280517,
+      "val_rmse": 4.837955474853516,
+      "seconds": 18.3
+    }
+  ],
+  "energy_offset_prior": [
+    -1.1299511194229126,
+    -4.95635986328125
+  ],
+  "best_epoch": 7,
+  "sigma_scale": 1.4597194194793701,
+  "acc_sigma_scale": 1.3155447244644165,
+  "params": 7001,
+  "train_drives": [
+    "S2",
+    "S3a",
+    "S3b",
+    "S4",
+    "Vw4",
+    "Vw2",
+    "Vfa02",
+    "Vta1a",
+    "Vw14c",
+    "Vta2",
+    "Vw11",
+    "Vta28",
+    "Vta8",
+    "Vw3",
+    "Vta30",
+    "Vta29"
+  ],
+  "val_drives": [
+    "S3c",
+    "Vta16",
+    "Vfa01"
+  ],
+  "normalisation": "fitted on training windows only"
+}
