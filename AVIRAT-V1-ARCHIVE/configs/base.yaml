@@ -1,0 +1,184 @@
+# SIH26168 Intelligent Dead Reckoning - MVP configuration.
+# Every experiment reads this file; override with --config or --set key=value.
+
+seed: 7
+
+data:
+  root: data/iovnbd                 # populated by `python -m src.download_data`
+  cache: data/cache                 # standardised drives (pickle), safe to delete
+  manifest: configs/iovnbd_manifest.csv
+  # Where GNSS measurements come from while GNSS is *healthy* (outside blackout):
+  #   vehicle - the car's reference receiver, time-aligned to the phone IMU (default)
+  #   phone   - the smartphone's own GPS fix (its clock drifts by seconds in IO-VNBD)
+  # Inside a blackout neither is visible to the estimator; the vehicle track is truth.
+  gnss_source: vehicle
+  max_gap_s: 1.0                    # split a drive into sessions at IMU gaps longer than this
+  sync:
+    segment_s: 600                  # piecewise lag estimation segment length
+    max_lag_s: 15.0                 # search +/- this many seconds around the nominal offset
+    min_corr: 0.5                   # segments below this gyro/yaw-rate correlation are unlabelled
+    lowpass_hz: 0.5
+  # Phone column mapping. The IO-VNBD header names the gyro axes Yaw/Pitch/Roll, but
+  # the data shows the "Pitch" column is the rotation rate about the phone's z axis
+  # (correlation 0.93-1.0 with the car's yaw-rate sensor, phone lying flat).
+  # The two horizontal axes could not be disambiguated, so the pipeline only uses
+  # their rotation-invariant magnitude.
+  gyro_columns:
+    x: "GYROSCOPE Roll (rad/s)"
+    y: "GYROSCOPE Yaw (rad/s)"
+    z: "GYROSCOPE Pitch (rad/s)"
+
+split:                              # by complete drive, never by row
+  # Y1 (driver D) is excluded: its phone and vehicle logs never correlate, so it has no labels.
+  # Drives with little or no label coverage contribute nothing and are simply skipped.
+  train: [S2, S3a, S3b, S4,
+          Vw4, Vw2, Vfa02, Vta1a, Vw14c, Vta2, Vw11, Vta28, Vta8, Vw3, Vta30, Vta29, Vta17,
+          Vtb3, Vta21, Vta22, Vta24, Vta1b, Vw5, Vw6, Vta11, Vta25, Vta7, Vw9, Vtb12, Vta5]
+  val: [S3c, Vta16, Vfa01]
+  test: [S1, M]                     # S1: unseen drive of a training driver (A); M: unseen driver (B)
+
+preprocess:
+  attitude: dynamic                 # dynamic: per-sample pitch/roll tracking; static: one fixed levelling
+  attitude_tau_s: 30.0              # accelerometer correction time constant
+  attitude_acc_gate: 0.6            # m/s^2: correct only while the specific force perpendicular to gravity is below this
+  # Gyro propagation is correct for a body-frame phone (live Android, synthetic
+  # tests) but NOT for IO-VNBD: its accelerometer is already Earth-levelled by the
+  # logger and its horizontal gyro axes do not match that frame. On validation
+  # drives it made forward-acceleration leakage 4-12x worse, so it is off here.
+  attitude_use_gyro: false
+  lowpass_hz: 2.0                   # causal 2nd-order Butterworth; keeps braking/turn dynamics
+  acc_clip: 12.0                    # m/s^2, per-axis spike clipping (vehicle frame, gravity removed)
+  gyro_clip: 2.5                    # rad/s
+  stationary_acc_std: 0.12          # m/s^2 rolling std threshold for "stationary"
+  stationary_gyro_std: 0.02         # rad/s
+  stationary_gyro_max: 0.03         # rad/s mean |gyro| (a steady turn is not "stationary")
+  stationary_window_s: 1.0
+  calib_max_s: 600                  # at most this much pre-blackout data for alignment/bias
+
+model:
+  type: gru                         # gru | tcn
+  window: 50                        # samples (5 s at 10 Hz)
+  hidden: 64
+  layers: 1
+  features: [a_f, a_l, a_u, w_u, w_h]
+  target: speed                     # forward speed at the last sample of the window
+  stride: 3                         # window stride when building the training set
+  epochs: 12
+  batch_size: 512
+  lr: 0.002
+  augment_noise: 0.0                # std of additive noise on normalised features (0 = off)
+  augment_scale: 0.0                # per-window channel gain jitter
+  nll_after_epoch: 4                # switch Huber -> Gaussian NLL (uncertainty) after this epoch
+  path: results/models/motionnet.pt
+
+filter:
+  # continuous-time noise densities (Q = sigma^2 * dt): the same covariance growth
+  # per second at 10 Hz and at 200 Hz. 0.16 / 0.0063 reproduce the previous
+  # (sigma*dt)^2 tuning exactly at 10 Hz.
+  sigma_acc: 0.16                   # m/s^2/sqrt(s) on vehicle-frame acceleration
+  sigma_gyro: 0.0063                # rad/s/sqrt(s) on yaw rate
+  sigma_ba_rw: 0.005                # accel bias random walk (m/s^2/sqrt(s))
+  sigma_bg_rw: 0.0005               # gyro bias random walk (rad/s/sqrt(s))
+  sigma_bl_rw: 0.01                 # lateral accel bias random walk (m/s^2/sqrt(s))
+  bg_prior_sigma: 0.005             # rad/s gyro bias uncertainty at initialisation
+  bl_prior_sigma: 0.2               # m/s^2 lateral accel bias (mount misalignment) at initialisation
+  gnss_pos_sigma: 3.0               # m
+  gnss_speed_sigma: 0.3             # m/s
+  gnss_heading_sigma_deg: 3.0
+  gnss_heading_min_speed: 3.0       # m/s; course-over-ground is meaningless when slow
+  gnss_gate_chi2: 13.8              # 2 dof, 99.9 %
+  gnss_timeout_s: 1.5               # no fix for longer than this -> DEAD RECKONING mode
+  reacq_inflation: 25.0             # R multiplier right after GNSS returns ...
+  reacq_tau_s: 3.0                  # ... decaying with this time constant
+  reacq_force_after: 5              # accept GNSS after this many consecutive gated rejections
+  nhc_sigma: 0.15                   # m/s soft rear-axle lateral-velocity constraint at 10 Hz (motorcycles: ~1.0)
+  lever_arm_x: 1.8                  # m, phone ahead of the rear axle (NHC holds at the axle, not the phone)
+  estimate_lever_arm: false         # true: r_x becomes a filter state with prior sigma lever_arm_sigma
+  lever_arm_sigma: 0.5
+  nhc_turn_rate_ref: 0.1            # R_nhc *= 1 + (|om|/0.1)^2 + (|a_l|/1.0)^2  (null disables a term)
+  nhc_lat_acc_ref: 1.0
+  nhc_max_yaw_rate: 0.4             # rad/s: skip NHC above this (aggressive cornering / sideslip)
+  nhc_freeze_yaw: false             # true: NHC may not rotate the heading (pre-Step-1 behaviour)
+  motion_sigma_floor: 0.3           # m/s minimum MotionNet pseudo-measurement std
+  motion_sigma_scale: 1.0           # scale on predicted std (tuned on validation drives: archive_experiments.tune)
+  # Decorrelated updates (1 Hz, R inflated by (1+rho)/(1-rho), rho = exp(-1/(hz*tau)),
+  # tau = 6.7 s measured on validation drives) make P_vf honest but were the worst
+  # setting on validation: median drift 60% (car GNSS) / 66% (phone) vs 18% / 30%
+  # at 10 Hz. With no other speed information in a blackout, discounting MotionNet
+  # lets the accelerometer bias (~0.25 m/s^2) drive the speed. Kept at 10 Hz;
+  # set motion_update_hz: 1.0, motion_err_tau_s: 6.7 for consistent covariances.
+  motion_update_hz: 10.0            # MotionNet speed updates per second
+  motion_err_tau_s: 0               # s, MotionNet error correlation time for R inflation (0 = none)
+  motion_sigma_fixed: null          # m/s: if set, use this instead of predicted-sigma * inflation
+  # MotionNet bias as a filter state (Step 3): z = v_f + b_v, b_v first-order
+  # Gauss-Markov. Calibrated online against GNSS speed before the blackout (MotionNet
+  # also runs while GNSS is healthy), then carried through it by its dynamics.
+  # (A static scalar bias correction was removed: the bias is drive-dependent,
+  # -3.19 .. +0.34 m/s across drives.)
+  # Off by default: on validation drives every b_v configuration tried (tau 4.7-600 s,
+  # sigma_b 3-5, white 0.25-1.0, sigma_acc 0.16-1.0) was worse than without it
+  # (best: 22.1% / 42.7% median drift vs 18.0% / 30.1%, car / phone GNSS). During a
+  # blackout MotionNet is the only speed observation, so its bias and the
+  # accelerometer-integrated speed error are both slow and cannot be separated; the
+  # filter then explains MotionNet's corrections as b_v and keeps its own speed.
+  motion_bias_state: false
+  motion_bias_tau_s: 4.7            # s, Gauss-Markov correlation time (0 = random constant)
+  motion_bias_sigma: 3.0            # m/s, stationary std of b_v (~ MotionNet error std)
+  motion_white_frac: 0.25           # white part of the MotionNet error as a fraction of its predicted std
+  zupt: true                        # zero-velocity update when the IMU says "stopped" (with the NHC stage)
+  zupt_min_still_s: 2.0             # the stop must persist this long ...
+  zupt_max_motion_speed: 2.0        # ... and MotionNet must agree (m/s), guarding against false stops
+  zupt_sigma: 0.2                   # m/s at 10 Hz, soft
+  zaru: true                        # zero angular-rate update while stopped -> gyro bias
+  zaru_sigma: 0.003                 # rad/s
+  # NHC / MotionNet may not update IMU biases during a blackout (validation, phone
+  # GNSS: letting NHC drive b_g raised median drift 32% -> 45% because IO-VNBD's
+  # lateral acceleration carries ~13 deg misalignment leakage that looks like gyro
+  # bias). The gyro bias is still NOT frozen: ZARU updates it at every stop.
+  dr_accel_mode: normal             # GNSS-denied forward-speed model: normal | decouple | inflate
+  dr_speed_rw: 1.0                  # m/s/sqrt(s) speed random walk when decoupled
+  dr_accel_inflation: 1000.0        # forward-accel process-noise multiplier when inflated
+  freeze_bias_in_dr: true
+  freeze_accel_bias_in_dr: false    # true: clamp b_a for *every* update while GNSS is denied
+                                    # (NHC/MotionNet/ZUPT already freeze it via freeze_bias_in_dr)
+  display_blend_s: 3.0              # displayed position eases onto GNSS corrections over ~this time
+
+anomaly:
+  enabled: true
+  window_s: 1.0                     # rolling reference window for both detectors
+  shock_accel_thr: 5.0              # m/s^2 |a_z - mean|; training p99.95 = 5.1
+  slip_gyro_thr: 3.0                # rad/s |w - mean|; training p99.99 = 2.7 (0.4 bursts/h)
+  slip_tilt_deg: 10.0               # gated gravity shift to confirm; training max at such bursts = 7.7
+  slip_gravity_gate: 0.3            # m/s^2: gravity reference uses samples with ||a| - g| below this
+  slip_min_gated: 5                 # samples needed on each side, else the burst stays a transient
+  slip_window_s: 3.0                # pre / post reference window
+  slip_window_max_s: 8.0            # give up (transient) if the post window never gets enough samples
+  slip_settle_s: 1.0                # ignore the first second after the burst
+  refractory_s: 1.0
+  shock_hold_s: 1.0                 # accelerometer Q inflated for this long after a shock / transient
+  shock_q_scale: 100.0
+
+map:
+  enabled: true                     # one flag turns map matching off for ablation
+  osm_path: null                    # Overpass JSON / .osm XML / GeoJSON; null -> trace map
+  radius_m: 30.0
+  sigma_across_m: 8.0               # tuned on validation drives
+  heading_gate_deg: 35.0
+  heading_sigma_deg: 6.0            # weak road-azimuth heading update ...
+  heading_min_streak: 3             # ... only after this many linked matches
+  heading_max_score: 2.0            # ... and with a match score at most this
+  continuity_bonus: 1.5
+  max_score: 6.0
+  ambiguity_margin: 2.0             # skip when a differently-oriented road scores within this margin
+  branch_angle_deg: 20.0
+  every: 5                          # attempt a match every N IMU samples
+  trace_spacing_m: 8.0              # for the trace-derived road proxy
+
+evaluate:
+  durations_s: [30, 60, 120]
+  windows_per_duration: 6
+  warmup_s: 300                     # GNSS-aided run-in before the blackout (also the calibration data)
+  post_s: 30                        # GNSS reacquisition after the blackout
+  min_distance_m: 100               # skip windows where the car barely moves
+  max_stationary_frac: 0.5
+  output_dir: outputs

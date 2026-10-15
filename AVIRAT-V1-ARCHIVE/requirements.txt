@@ -1,0 +1,12 @@
+numpy>=1.24
+scipy>=1.10
+pandas>=2.0
+matplotlib>=3.7
+pyyaml>=6.0
+torch>=2.1
+pytest>=7.0
+# UI demo (src/ui/app.py) and mobile export (scripts/export_onnx.py)
+streamlit>=1.40
+plotly>=5.24
+onnx>=1.16
+onnxruntime>=1.18

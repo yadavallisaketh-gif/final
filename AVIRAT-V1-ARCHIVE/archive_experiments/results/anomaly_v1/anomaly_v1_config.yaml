@@ -1,0 +1,10 @@
+anomaly:                            # src/anomaly_detector.py (IMU-only, causal)
+  enabled: true
+  window_s: 1.0                     # reference window for the high-pass statistics
+  shock_accel_thr: 5.0              # m/s^2 vertical spike vs its 1 s mean (training p99.95 = 5.1)
+  slip_gyro_thr: 1.0                # rad/s gyro burst vs its 1 s mean -> slip candidate (training ~p99)
+  slip_tilt_deg: 3.0                # ... confirmed only if gravity moves > 3 deg in the phone frame
+  slip_confirm_s: 1.0               # post-event window used for the confirmation
+  refractory_s: 1.0
+  shock_hold_s: 1.0                 # distrust the accelerometer this long after an event
+  shock_q_scale: 100.0              # accelerometer process-noise multiplier while distrusted

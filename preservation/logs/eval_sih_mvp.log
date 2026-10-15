@@ -1,0 +1,74 @@
+MotionNet: gru, 17922 params, trained on ['S2', 'S3a', 'S3b', 'S4', 'Vw4', 'Vw2', 'Vfa02', 'Vta1a', 'Vw14c', 'Vta2', 'Vw11', 'Vta28', 'Vta8', 'Vw3', 'Vta30', 'Vta29', 'Vta17', 'Vtb3', 'Vta21', 'Vta22', 'Vta24', 'Vta1b', 'Vw5', 'Vw6', 'Vta11', 'Vta25', 'Vta7', 'Vw9', 'Vtb12', 'Vta5']
+S1: road network 'trace-derived (training drives)' with 89626 segments
+S1: 18 blackout windows
+  S1 s0 t=    300   30s dist=   394m  A:38.3%  B:54.3%  C:54.0%  C+NHC:29.2%  D:25.7%
+  S1 s0 t=   1185   30s dist=   118m  A:327.3%  B:280.4%  C:43.7%  C+NHC:24.6%  D:24.6%
+  S1 s0 t=   2145   30s dist=   288m  A:9.2%  B:158.8%  C:123.7%  C+NHC:10.5%  D:10.5%
+  S1 s0 t=   3060   30s dist=   163m  A:85.3%  B:20.4%  C:13.0%  C+NHC:5.6%  D:5.6%
+  S1 s0 t=   3960   30s dist=   177m  A:215.1%  B:143.8%  C:70.7%  C+NHC:17.3%  D:17.3%
+  S1 s0 t=   5055   30s dist=   102m  A:159.1%  B:107.4%  C:50.4%  C+NHC:21.0%  D:20.8%
+  S1 s0 t=    300   60s dist=   820m  A:75.8%  B:79.5%  C:68.7%  C+NHC:30.3%  D:21.3%
+  S1 s0 t=   1230   60s dist=   475m  A:66.2%  B:86.2%  C:19.9%  C+NHC:12.7%  D:12.7%
+  S1 s0 t=   2130   60s dist=   567m  A:101.1%  B:92.7%  C:19.7%  C+NHC:6.5%  D:6.5%
+  S1 s0 t=   3060   60s dist=   342m  A:113.7%  B:93.4%  C:39.1%  C+NHC:10.0%  D:10.0%
+  S1 s0 t=   3960   60s dist=   419m  A:322.2%  B:162.2%  C:47.4%  C+NHC:9.8%  D:9.8%
+  S1 s0 t=   5040   60s dist=   187m  A:206.7%  B:221.4%  C:193.8%  C+NHC:25.1%  D:23.4%
+  S1 s0 t=    300  120s dist=  1539m  A:173.3%  B:149.9%  C:72.9%  C+NHC:52.2%  D:45.0%
+  S1 s0 t=   1200  120s dist=   893m  A:71.4%  B:37.5%  C:10.3%  C+NHC:34.3%  D:34.3%
+  S1 s0 t=   2160  120s dist=  1026m  A:192.7%  B:411.1%  C:46.9%  C+NHC:28.3%  D:28.3%
+  S1 s0 t=   3060  120s dist=   604m  A:210.4%  B:227.7%  C:22.8%  C+NHC:12.3%  D:12.3%
+  S1 s0 t=   4020  120s dist=   778m  A:93.4%  B:224.9%  C:78.9%  C+NHC:44.2%  D:44.2%
+  S1 s0 t=   4980  120s dist=   751m  A:160.9%  B:255.0%  C:84.3%  C+NHC:10.1%  D:6.8%
+M: road network 'trace-derived (training drives)' with 89624 segments
+M: 18 blackout windows
+  M s0 t=    300   30s dist=   526m  A:265.7%  B:40.5%  C:41.9%  C+NHC:22.0%  D:22.2%
+  M s0 t=   2175   30s dist=   199m  A:36.6%  B:70.5%  C:20.3%  C+NHC:13.5%  D:13.5%
+  M s0 t=   4035   30s dist=   415m  A:38.2%  B:14.2%  C:20.8%  C+NHC:11.5%  D:10.5%
+  M s2 t=   6774   30s dist=   271m  A:64.1%  B:59.4%  C:32.5%  C+NHC:23.6%  D:23.6%
+  M s2 t=   8739   30s dist=   216m  A:75.3%  B:39.9%  C:21.7%  C+NHC:16.7%  D:16.7%
+  M s2 t=  10524   30s dist=   144m  A:140.5%  B:74.1%  C:23.5%  C+NHC:8.2%  D:8.2%
+  M s0 t=    300   60s dist=  1010m  A:510.1%  B:88.9%  C:44.7%  C+NHC:20.5%  D:20.2%
+  M s0 t=   2130   60s dist=   386m  A:96.9%  B:95.7%  C:25.5%  C+NHC:16.1%  D:16.1%
+  M s0 t=   4140   60s dist=   174m  A:175.4%  B:136.8%  C:84.2%  C+NHC:13.8%  D:8.2%
+  M s2 t=   6789   60s dist=   437m  A:48.8%  B:248.0%  C:81.1%  C+NHC:9.5%  D:9.5%
+  M s2 t=   8649   60s dist=   545m  A:74.4%  B:11.3%  C:13.6%  C+NHC:7.8%  D:7.8%
+  M s2 t=  10479   60s dist=   283m  A:142.4%  B:252.1%  C:14.2%  C+NHC:7.8%  D:7.8%
+  M s0 t=    300  120s dist=  1820m  A:857.5%  B:144.5%  C:9.5%  C+NHC:8.8%  D:6.6%
+  M s0 t=   2100  120s dist=   720m  A:227.2%  B:259.1%  C:88.3%  C+NHC:3.8%  D:3.8%
+  M s0 t=   4140  120s dist=   430m  A:106.7%  B:209.8%  C:64.4%  C+NHC:7.3%  D:8.5%
+  M s2 t=   6789  120s dist=   905m  A:72.1%  B:422.2%  C:37.3%  C+NHC:25.3%  D:25.3%
+  M s2 t=   8589  120s dist=  1015m  A:169.5%  B:163.2%  C:49.8%  C+NHC:17.3%  D:17.3%
+  M s2 t=  10389  120s dist=  1008m  A:218.6%  B:315.7%  C:62.2%  C+NHC:30.3%  D:30.3%
+ duration_s variant  windows  distance_m  drift_pct_median  drift_pct_mean  endpoint_m_median  ate_m_median  speed_rmse  heading_mae_deg  reacq_max_step_m  ms_per_step
+      30.00       A       12      251.09             80.29          121.23             162.55         69.26        4.59             4.60              5.08         0.22
+      30.00       B       12      251.09             64.93           88.65             150.54         58.45        3.26             1.93              3.96         0.40
+      30.00       C       12      251.09             37.23           43.02              68.96         29.99        2.40             2.91              1.82         0.53
+      30.00   C+NHC       12      251.09             17.00           16.97              30.52         15.05        1.69             4.53              1.29         0.60
+      30.00       D       12      251.09             17.00           16.61              30.52         13.28        1.69             3.28              1.29         0.58
+      60.00       A       12      470.46            107.41          161.15             395.87        140.85        4.94             6.82             12.09         0.17
+      60.00       B       12      470.46             94.53          130.68             470.25        166.64        4.72             6.50             14.50         0.38
+      60.00       C       12      470.46             41.88           54.33             140.05         78.90        2.99             9.08              5.34         0.61
+      60.00   C+NHC       12      470.46             11.38           14.16              42.09         18.38        1.96             7.93              1.37         0.64
+      60.00       D       12      470.46              9.91           12.77              42.09         17.86        1.96             4.10              1.37         0.63
+     120.00       A       12      957.41            171.38          212.81            1453.31        509.18       10.77             7.45             45.74         0.18
+     120.00       B       12      957.41            226.28          235.05            1890.34        630.56       15.54            12.12             53.68         0.37
+     120.00       C       12      957.41             55.97           52.30             493.10        194.59        3.16            14.75             15.10         0.73
+     120.00   C+NHC       12      957.41             21.33           22.86             202.53         81.59        1.91            11.79              7.09         0.80
+     120.00       D       12      957.41             21.33           21.89             202.53         81.59        1.91             9.60              6.90         0.80
+BENCHMARK   30 s blackout, D: ML + EKF + NHC + map: median drift 17.00% over 12 windows -> FAIL (<10%)
+BENCHMARK   60 s blackout, D: ML + EKF + NHC + map: median drift 9.91% over 12 windows -> PASS (<10%)
+BENCHMARK  120 s blackout, D: ML + EKF + NHC + map: median drift 21.33% over 12 windows -> FAIL (<10%)
+
+ANOMALY DETECTOR (shock |dAz| > 5.0 m/s^2, slip |dgyro| > 3.0 rad/s confirmed by > 10.0 deg gravity shift)
+   S1:   37.9 km  shocks  10  transients   0  slips  0  (0.26 Q-suppressions/km)
+    M:  105.1 km  shocks  12  transients   1  slips  0  (0.12 Q-suppressions/km)
+  total caught: 22 shocks + 1 transients -> accel Q x100 for 1 s each; 0 mount slips -> attitude re-levelled
+  inside blackouts (no GNSS, suppression acts on pure DR): 0 shocks, 0 transients, 0 slips
+  D windows with >=1 anomaly handled: 0/36 (benchmark unaffected by the detector)
+saved outputs/sih_mvp/plots/sih_overview_S1_sih_mvp.png
+saved outputs/sih_mvp/plots/sih_overview_M_sih_mvp.png
+saved outputs/sih_mvp/plots/sih_panels_sih_mvp.png
+
+real	7m11.833s
+user	7m1.430s
+sys	0m3.454s

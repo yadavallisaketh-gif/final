@@ -1,0 +1,16 @@
+
+LEAKAGE AUDIT: PASS
+  [PASS] 1a no drive in two splits
+  [PASS] 1b windows never span two drives/sessions
+  [PASS] 2 normalisation fitted on training drives only
+  [PASS] 2b model trained with the configured split
+  [PASS] 3a MotionNet inputs are IMU features only
+  [PASS] 3b estimator input schema excludes reference/wheel/CAN columns
+  [PASS] 3c forbidden-name guard active
+  [PASS] 4 window label = last input sample (no future information)
+  [PASS] 5a GNSS masked in estimator input during blackout
+  [PASS] 5b zero GNSS updates inside blackout (all variants)
+
+real	0m26.827s
+user	0m24.499s
+sys	0m2.418s

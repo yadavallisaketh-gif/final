@@ -1,0 +1,896 @@
+{
+  "schema": "avirat-artifact-manifest/1",
+  "project": "AVIRAT early MVP (SIH26168, Team Web Forge): Intelligent Dead Reckoning",
+  "frozen_snapshot": {
+    "directory": "AVIRAT-V1-ARCHIVE",
+    "source": "git archive of the repository HEAD; the uploaded final-main.zip was not present in the session container, so the committed repository content is the preserved source",
+    "git_commit": "d4a521dc2598d03949ada4b0d562ce2b20e2e78c",
+    "git_tree": "843d444ffa5582def4d777e3e40f0c198e11e300",
+    "git_commit_subject": "docs: identify repo as AVIRAT early MVP; fix anomaly thresholds and EKF state description",
+    "git_commit_date": "2026-09-30T08:07:47+00:00",
+    "file_count": 98,
+    "total_bytes": 6200007,
+    "sha256_list": "preservation/AVIRAT-V1-ARCHIVE.sha256",
+    "sha256_of_sha256_list": "d154e1e96a02d48d62358b5a141ac80ac7ffc36197321eab35106f0762ea6a33",
+    "verify_command": "python -B preservation/verify_v1_archive.py",
+    "read_only_policy": "file modes set to a-w locally; git cannot store read-only modes and root ignores them, so hash verification is the enforcement",
+    "legacy_root_copy": "the repository root still holds the same 98 files at their original paths; verify_v1_archive.py checks them against the archive too"
+  },
+  "v2_workspace": {
+    "directory": "AVIRAT-V2",
+    "initial_state": "byte-identical copy of AVIRAT-V1-ARCHIVE"
+  },
+  "files_by_category": {
+    "code": 28,
+    "configuration": 2,
+    "configuration/dependencies": 1,
+    "configuration/vcs": 1,
+    "dataset_metadata": 1,
+    "documentation": 3,
+    "evaluation": 6,
+    "historical_experiment/code_and_docs": 4,
+    "historical_experiment/evaluation": 33,
+    "historical_experiment/model_weights": 2,
+    "model_weights": 1,
+    "model_weights/metadata": 1,
+    "onnx_export": 1,
+    "onnx_export/metadata": 1,
+    "plot": 5,
+    "test": 8
+  },
+  "files": [
+    {
+      "path": ".gitignore",
+      "category": "configuration/vcs",
+      "bytes": 166,
+      "sha256": "755d411d7aefd8b63ff1760f4864ebfb15aefb4237ed58be7328954886ff7b98",
+      "git_blob": "6395c156f5ce62b50b096f99caf54dcd62b36146"
+    },
+    {
+      "path": "README.md",
+      "category": "documentation",
+      "bytes": 22042,
+      "sha256": "1b1ef2b92144fde4e99173a5ab0e77e4a3e7d09d2bbd4441e678cc4a4819c51a",
+      "git_blob": "bf81e483e5b28d40dcc113f0b9e9e74a8b37521a"
+    },
+    {
+      "path": "archive_experiments/README.md",
+      "category": "historical_experiment/code_and_docs",
+      "bytes": 6088,
+      "sha256": "03c2a48f92e42cc7d1607e4b95c11fa66b6bb9fb67de48a4b8f17a99d16fb7f1",
+      "git_blob": "6806f57abe972906850420d89ceb56a7f223a9dc"
+    },
+    {
+      "path": "archive_experiments/ablation.py",
+      "category": "historical_experiment/code_and_docs",
+      "bytes": 6271,
+      "sha256": "9f38ae953f0fb379770147602cc21d08f874b10cde488e92bcd84c57ee889e99",
+      "git_blob": "b3e9c19b9882df9279c969cd3bd9a6a7cadc25d0"
+    },
+    {
+      "path": "archive_experiments/anomaly_detector_v1_hypersensitive.py",
+      "category": "historical_experiment/code_and_docs",
+      "bytes": 5707,
+      "sha256": "1affc084514eed97d9ce014a8b6bb71804eaf6846848d125776d5a9238dfdfc7",
+      "git_blob": "af44b2b17f7798835a9af53cb0e93538a8d78f92"
+    },
+    {
+      "path": "archive_experiments/models/motionnet_v1_pre_step1.json",
+      "category": "historical_experiment/model_weights",
+      "bytes": 1244,
+      "sha256": "4e837b04c1feaa1e674c5df5f0f1e626af643dea603cddf9ae4f2a476d040bac",
+      "git_blob": "09040ce517374ea8bbb81029c5a1fe9a9ca7d60b"
+    },
+    {
+      "path": "archive_experiments/models/motionnet_v1_pre_step1.pt",
+      "category": "historical_experiment/model_weights",
+      "bytes": 76457,
+      "sha256": "b7cfed83eac32454f8e7ee472d0bbc5e03bdd9b20443b1db040fc72f264a6cc3",
+      "git_blob": "7252067451188b516b481f9b5e36dde64d8faeda"
+    },
+    {
+      "path": "archive_experiments/results/ablations/ablation_test_phone_s2.csv",
+      "category": "historical_experiment/evaluation",
+      "bytes": 112029,
+      "sha256": "6c0fd24d2fad03960e1f84485de448ca28f5259d8e9669a60295470724a3d34e",
+      "git_blob": "319f97c04437b21838d7301516c04c7b5cc197ed"
+    },
+    {
+      "path": "archive_experiments/results/ablations/ablation_test_phone_s3.csv",
+      "category": "historical_experiment/evaluation",
+      "bytes": 113643,
+      "sha256": "63c2b024a574e9818ee4bd6cff93e2ec30ec11530e1bc3f5d5aecbc3a1d22a8a",
+      "git_blob": "f1b014d5a0bdc16677ead85a0f38fe7592a5f7d9"
+    },
+    {
+      "path": "archive_experiments/results/ablations/ablation_test_vehicle_s2.csv",
+      "category": "historical_experiment/evaluation",
+      "bytes": 112967,
+      "sha256": "90ef249721b7ad44c39541b25cd6437c3dc9606d30ef74d76da6facf2f12b4f3",
+      "git_blob": "9f3477e9bf1bc18f86196f92e28dc3f4a99457d0"
+    },
+    {
+      "path": "archive_experiments/results/ablations/ablation_test_vehicle_s3.csv",
+      "category": "historical_experiment/evaluation",
+      "bytes": 114334,
+      "sha256": "529e7226313a2308fd5478e2ad2e4f511a36e06e696b17597ace2336bde734bb",
+      "git_blob": "5bbe480c5a9dde988fe9544e049984628b481ec8"
+    },
+    {
+      "path": "archive_experiments/results/ablations/ablation_val_phone_s2.csv",
+      "category": "historical_experiment/evaluation",
+      "bytes": 205563,
+      "sha256": "aa5ba42aaf7c33890b3698d427d9626b94acffe9787c6bca133fe016e928d7dd",
+      "git_blob": "d62e32d34e9dbcfef4d4232aaa30dade7f04717c"
+    },
+    {
+      "path": "archive_experiments/results/ablations/ablation_val_phone_s3.csv",
+      "category": "historical_experiment/evaluation",
+      "bytes": 186052,
+      "sha256": "2f7ef52b21cf814c0a431159486b4bc50a3c30530d455f2fd7334dfacbd05d57",
+      "git_blob": "6a2dcab73446981781f6243ff2f8de602a4e1efd"
+    },
+    {
+      "path": "archive_experiments/results/ablations/ablation_val_phone_s3b.csv",
+      "category": "historical_experiment/evaluation",
+      "bytes": 125803,
+      "sha256": "0fcf6b9d9a609a8339a835867da8a62d037683bce86aeb36079d9a2d486df470",
+      "git_blob": "2064652e84a90103c130fa825ae863815aca2c9b"
+    },
+    {
+      "path": "archive_experiments/results/ablations/ablation_val_vehicle_s2.csv",
+      "category": "historical_experiment/evaluation",
+      "bytes": 207655,
+      "sha256": "ae124139423298651605c59e65d4ed8ed5169c98dc6fc55a72ea6745ec6cb37b",
+      "git_blob": "b96302b8ca1612f8774b49d15d1df2ff7863bcb1"
+    },
+    {
+      "path": "archive_experiments/results/ablations/ablation_val_vehicle_s3.csv",
+      "category": "historical_experiment/evaluation",
+      "bytes": 187896,
+      "sha256": "d05ec18e14850eb0f6b639741e8efcf23737c65e6f2c0611664689d1ae137d3d",
+      "git_blob": "8e4d5d59761cfcdda7ed17b510f344c1d1537047"
+    },
+    {
+      "path": "archive_experiments/results/ablations/ablation_val_vehicle_s3b.csv",
+      "category": "historical_experiment/evaluation",
+      "bytes": 126854,
+      "sha256": "b4f64b90755166a4baf4953d53f4f83df35bdb8261bb27287339b92a2565c714",
+      "git_blob": "703bb862986163ff37b6fd7a11df4887c01efc4a"
+    },
+    {
+      "path": "archive_experiments/results/anomaly_v1/anomaly_v1_config.yaml",
+      "category": "historical_experiment/evaluation",
+      "bytes": 772,
+      "sha256": "6b59d974d34e180de9fa7e58ce092ffac33e81a7b8ed97b09dabc58c61f0fc10",
+      "git_blob": "482b14185c1ba21b0b31c101998de569ebb99f8a"
+    },
+    {
+      "path": "archive_experiments/results/anomaly_v1/eval_test_anomaly_v1.log",
+      "category": "historical_experiment/evaluation",
+      "bytes": 3478,
+      "sha256": "92f6309d88cdf368c35d2968acebb62f4b3a2cb74eb12f28c5aefba10dacf508",
+      "git_blob": "38d1b4ecdc9813e4b35e980c3ea7f9e8cc9651be"
+    },
+    {
+      "path": "archive_experiments/results/motionnet_v1/motionnet_gru.json",
+      "category": "historical_experiment/evaluation",
+      "bytes": 8740,
+      "sha256": "ff96f684a8a23ef2c74cf733a0ce310740bb1cbb52d4ae20c5d4f17d8da50aa5",
+      "git_blob": "12f7744c92277fb53e2d93c8742e41435428a845"
+    },
+    {
+      "path": "archive_experiments/results/motionnet_v1/motionnet_gru_curves.png",
+      "category": "historical_experiment/evaluation",
+      "bytes": 32511,
+      "sha256": "91cb2fe204a9b0f8ccb3626c8844eff9330d41abf75c482f6442354a995925ca",
+      "git_blob": "4301dae4c3dacfc7231a75603ea72bcf6d714663"
+    },
+    {
+      "path": "archive_experiments/results/motionnet_v1/motionnet_gru_test_speed.png",
+      "category": "historical_experiment/evaluation",
+      "bytes": 244595,
+      "sha256": "79e7fbe6da9c941b8385014713433fba8f289e18e7bee258e7c6d6bd428ba157",
+      "git_blob": "040e4e1a78d9e1e81c4516546bcd8729f33339bd"
+    },
+    {
+      "path": "archive_experiments/results/pre_step1_test_run/metrics/eval_meta_test.json",
+      "category": "historical_experiment/evaluation",
+      "bytes": 799,
+      "sha256": "105aeb4ea374ca9f9d4046c449ee5afd5268ae868bc1a3d6daf3463803c9d9e5",
+      "git_blob": "a8984eb582c21bd95e06fe0f55cfa839f2a4e32a"
+    },
+    {
+      "path": "archive_experiments/results/pre_step1_test_run/metrics/eval_summary_test.csv",
+      "category": "historical_experiment/evaluation",
+      "bytes": 2827,
+      "sha256": "6033039391382c990080fc5e1b4c9e3cda210b39ac930a8666d0a20228bb9101",
+      "git_blob": "47d4b6866908aa1127ee57605b75bac64df93f8b"
+    },
+    {
+      "path": "archive_experiments/results/pre_step1_test_run/metrics/eval_summary_test.md",
+      "category": "historical_experiment/evaluation",
+      "bytes": 1605,
+      "sha256": "284316554acb074d16d57cbc8999c530d069391b210c2ca4048218c41a3cfa09",
+      "git_blob": "e36acaf00d84fd52b97d80d481a40ada4399c27b"
+    },
+    {
+      "path": "archive_experiments/results/pre_step1_test_run/metrics/eval_windows_test.csv",
+      "category": "historical_experiment/evaluation",
+      "bytes": 62348,
+      "sha256": "5956d6b8337da09e3d225b387a3e7cdcccfc1ab61930b9d82c62c81492db6347",
+      "git_blob": "6066bd48dbfce07f22f4803b770e821c22c7da92"
+    },
+    {
+      "path": "archive_experiments/results/pre_step1_test_run/plots/summary_test.png",
+      "category": "historical_experiment/evaluation",
+      "bytes": 33476,
+      "sha256": "e73900131821188d0798bfffa631a5f5675c49560c9a94c6b3d2b028773bf93e",
+      "git_blob": "f53b249d3378dfe6daa362112e0b0a8fb88d46c4"
+    },
+    {
+      "path": "archive_experiments/results/pre_step1_test_run/plots/traj_M_120s_2100.png",
+      "category": "historical_experiment/evaluation",
+      "bytes": 131581,
+      "sha256": "388f63c1a627fb487a4f2f729949562e78e16b3a156017a535dc324654ea925d",
+      "git_blob": "6878494b34209ddf5c7817e8285ae5dacdafcefa"
+    },
+    {
+      "path": "archive_experiments/results/pre_step1_test_run/plots/traj_M_120s_300.png",
+      "category": "historical_experiment/evaluation",
+      "bytes": 124472,
+      "sha256": "aadf5a0048e53d93e0fe31b9bbce2319fed38eac4e5455e5e4bfb5d3d9aba2a8",
+      "git_blob": "e2d9124d9d440b509d0e912110650a5212067aca"
+    },
+    {
+      "path": "archive_experiments/results/pre_step1_test_run/plots/traj_M_30s_2175.png",
+      "category": "historical_experiment/evaluation",
+      "bytes": 138376,
+      "sha256": "d0c0a0ab696569278a03bd4d94898b1cfdf43e260a73c39a0d6ad1c9a20d0f1a",
+      "git_blob": "8abbc80c4f83a3fb884f555bd9ceff057e9b43bc"
+    },
+    {
+      "path": "archive_experiments/results/pre_step1_test_run/plots/traj_M_30s_300.png",
+      "category": "historical_experiment/evaluation",
+      "bytes": 157528,
+      "sha256": "db6588890ad7216891cec3fc43e113a4d70eaad593e139450009d3e3a037514f",
+      "git_blob": "6a48e59f5f7d25ca6b7a7c219ef8445f2385cd96"
+    },
+    {
+      "path": "archive_experiments/results/pre_step1_test_run/plots/traj_M_60s_2130.png",
+      "category": "historical_experiment/evaluation",
+      "bytes": 145292,
+      "sha256": "03202114cc337bd26c0c926f69c81460035014cc76065847b1edb6030fc2a4e2",
+      "git_blob": "bfe7ffbfa30c5e4f3c2ce05c12fd865a17914956"
+    },
+    {
+      "path": "archive_experiments/results/pre_step1_test_run/plots/traj_M_60s_300.png",
+      "category": "historical_experiment/evaluation",
+      "bytes": 127913,
+      "sha256": "3180acdb56f600cbc07d27e80c66eb36091ba043b291be17e40b6ae4d35f2b48",
+      "git_blob": "59341a90ea01b9fa0c9c7d974c44c731acc5bb2a"
+    },
+    {
+      "path": "archive_experiments/results/pre_step1_test_run/plots/traj_S1_120s_1200.png",
+      "category": "historical_experiment/evaluation",
+      "bytes": 148272,
+      "sha256": "8e2bbabb6dda1fab93d3843b18e1189daec5d78b8f18b21ec66347c71e3c870a",
+      "git_blob": "4e9e663d2ab6a6c8ed39bd5ee5426473772ed98d"
+    },
+    {
+      "path": "archive_experiments/results/pre_step1_test_run/plots/traj_S1_120s_300.png",
+      "category": "historical_experiment/evaluation",
+      "bytes": 160953,
+      "sha256": "c90f68fd2d982af155fc5400325a8f0fde65f98690c3e5524aed734e844d09da",
+      "git_blob": "5fdf289af52bede625edf939bb6aad4644c2f2a2"
+    },
+    {
+      "path": "archive_experiments/results/pre_step1_test_run/plots/traj_S1_30s_1185.png",
+      "category": "historical_experiment/evaluation",
+      "bytes": 133136,
+      "sha256": "205b0179519cf77f1eb90a12a8c1a617ee23cfef462d36b11704f8aa95bfa630",
+      "git_blob": "da6fba87debf6b18eac5c036088541f8df995a34"
+    },
+    {
+      "path": "archive_experiments/results/pre_step1_test_run/plots/traj_S1_30s_300.png",
+      "category": "historical_experiment/evaluation",
+      "bytes": 147317,
+      "sha256": "f279334eb8457b98cf9e58ed852bfe6b3d95d476a0a7405f14114dc748ebc9ce",
+      "git_blob": "897b71dda71620d0f8144cfe93962431d30b8f5a"
+    },
+    {
+      "path": "archive_experiments/results/pre_step1_test_run/plots/traj_S1_60s_1230.png",
+      "category": "historical_experiment/evaluation",
+      "bytes": 140601,
+      "sha256": "2b1700ec18cc6211f033449e894bf44d16ed2430fcb89893bf0fe29442ec5369",
+      "git_blob": "bab5594dbe6cbb84e86cdb855f69cc23528c0268"
+    },
+    {
+      "path": "archive_experiments/results/pre_step1_test_run/plots/traj_S1_60s_300.png",
+      "category": "historical_experiment/evaluation",
+      "bytes": 147555,
+      "sha256": "be9fd0b9b9b42ddff82258d679f454cf959adbb2b3a6e2f97279ca9201b5767d",
+      "git_blob": "c92d876256efbb13598c827e3348735ce0d8989b"
+    },
+    {
+      "path": "archive_experiments/results/tuning_val.csv",
+      "category": "historical_experiment/evaluation",
+      "bytes": 1054,
+      "sha256": "be7ff2532dcfb5a33987276ab24682f58ed27dd6ad291940a4f87914158912a9",
+      "git_blob": "ee5b4eb2d29e06c1a5d011a4194bc96c520382d9"
+    },
+    {
+      "path": "archive_experiments/tune.py",
+      "category": "historical_experiment/code_and_docs",
+      "bytes": 2528,
+      "sha256": "49d34f08390b60f31e223ffaadea7cb3156b94b9cd7c578160c6d15367c23591",
+      "git_blob": "d1635556bc8433e284a39de01a3ae7d9fcb41d55"
+    },
+    {
+      "path": "configs/base.yaml",
+      "category": "configuration",
+      "bytes": 11880,
+      "sha256": "5ec33c60576a5d9be1964537308781bd146c89ddddb20868a8705be52c60a6b6",
+      "git_blob": "2bc898b5e7778ec139a4b40bd326d130b3c5ae61"
+    },
+    {
+      "path": "configs/iovnbd_manifest.csv",
+      "category": "dataset_metadata",
+      "bytes": 23866,
+      "sha256": "bd5065ebfda4d682277cb82c3977e3bb8bd7a7e2b54fc623bbdb9606e331e915",
+      "git_blob": "feeaf2f8d14882d09543938375f1008e553a5380"
+    },
+    {
+      "path": "configs/sih_mvp.yaml",
+      "category": "configuration",
+      "bytes": 1095,
+      "sha256": "2a1b73f71664eef9c1e1d35ffbeb9381343aee8d98b58752824a5dc76d20d74c",
+      "git_blob": "ebf333f384da517e9821571ebc268ac180a14747"
+    },
+    {
+      "path": "docs/DETAILED_MVP_REPORT.md",
+      "category": "documentation",
+      "bytes": 17032,
+      "sha256": "d990bb73afd72c4ad4308a4bab9e59d566eaf567a5d94a640fdc278cbf696c2a",
+      "git_blob": "e15c16b9cebc40ea41a2f9de02c4741444e03316"
+    },
+    {
+      "path": "docs/android_integration.md",
+      "category": "documentation",
+      "bytes": 2946,
+      "sha256": "41e25393dc2337eee0ad97162c4f727fc534f06db348069e10a5e7a3d55899c5",
+      "git_blob": "e8b0e58a3bd89a6d397888230359e42a26c53296"
+    },
+    {
+      "path": "requirements.txt",
+      "category": "configuration/dependencies",
+      "bytes": 214,
+      "sha256": "a08211d2ce0e2eaa11559ac1326be1c5e72f2e4b6b6093d743c2746cd673c80f",
+      "git_blob": "426873150553e9213c976b1e7e1aaa6d62b42dcd"
+    },
+    {
+      "path": "results/metrics/leakage_audit.json",
+      "category": "evaluation",
+      "bytes": 2446,
+      "sha256": "987210360f91bd4ce3c39fcf86ca3c00a42eaccd87ede1bf8b57a958bc3b0cf8",
+      "git_blob": "c87150a1830cf4a1ab9b0cdf72e275de8ba42d5f"
+    },
+    {
+      "path": "results/metrics/motionnet_gru.json",
+      "category": "evaluation",
+      "bytes": 8752,
+      "sha256": "934bbe13e36d4eb93d60957c5ba9dd7cc969b710df8ca560e1e3cdc8e7871a34",
+      "git_blob": "de31f8bb4fda56a532317dd733be908f088259b4"
+    },
+    {
+      "path": "results/models/motionnet.json",
+      "category": "model_weights/metadata",
+      "bytes": 1247,
+      "sha256": "2c9eeae4112d37f82b7afda1b01db7703233ac0a3727fc3ccdf4f335ac4b0994",
+      "git_blob": "4c378724190bf22a4e3267c4d2002db81946ce30"
+    },
+    {
+      "path": "results/models/motionnet.pt",
+      "category": "model_weights",
+      "bytes": 76457,
+      "sha256": "5e2bfc06e0f057f418b722138a54188d3edbdf81d7544b5d33ad157e1b6afa11",
+      "git_blob": "49f0709106b7856c29312ddf61298b261f1c9bb1"
+    },
+    {
+      "path": "results/models/motionnet_mobile.json",
+      "category": "onnx_export/metadata",
+      "bytes": 549,
+      "sha256": "78dbafb454cae8cf888e54f2ecf49bd8f241e2a2448d51eff83fa5db032d3da7",
+      "git_blob": "e1d6e2bffd961d14c93794d76f9897e26896d1d1"
+    },
+    {
+      "path": "results/models/motionnet_mobile.onnx",
+      "category": "onnx_export",
+      "bytes": 75639,
+      "sha256": "badf90cc18d661fbb055c25963c13257d9cb83fec28439e6e743324cb3190ef8",
+      "git_blob": "eb8eebaca1bceb758bc6e283a272cae5791a989a"
+    },
+    {
+      "path": "results/plots/motionnet_gru_curves.png",
+      "category": "plot",
+      "bytes": 32152,
+      "sha256": "a478310f3e4a02caecc3a9637bb5d0beffbeeabd41e7a1731ce04b762953a9a6",
+      "git_blob": "9fa1ffadf3c77009ee736e3b6ba81f7e1231f143"
+    },
+    {
+      "path": "results/plots/motionnet_gru_test_speed.png",
+      "category": "plot",
+      "bytes": 243718,
+      "sha256": "ef72547d9862ba8f29dfaa1838132e3c05fb454fe783f91c5e8298c13f1194b5",
+      "git_blob": "fab89a62ea323d4ff8fb9fe1faa37601f93f1c6a"
+    },
+    {
+      "path": "results/sih/eval_meta_sih_mvp.json",
+      "category": "evaluation",
+      "bytes": 799,
+      "sha256": "105aeb4ea374ca9f9d4046c449ee5afd5268ae868bc1a3d6daf3463803c9d9e5",
+      "git_blob": "a8984eb582c21bd95e06fe0f55cfa839f2a4e32a"
+    },
+    {
+      "path": "results/sih/eval_summary_sih_mvp.md",
+      "category": "evaluation",
+      "bytes": 1605,
+      "sha256": "05b8a25770b01e0b87148472c931ebe86574535d900037e3019601f9b9cad044",
+      "git_blob": "112d86e2c47290d4f48844b1531bccc8b7ac34e0"
+    },
+    {
+      "path": "results/sih/eval_windows_sih_mvp.csv",
+      "category": "evaluation",
+      "bytes": 62334,
+      "sha256": "d7c19f7812f301d45efe464465be7b118e30197e8803446ebf280928c4ffb143",
+      "git_blob": "226f43ead23e74df645ec57eea1cdb001870c4ee"
+    },
+    {
+      "path": "results/sih/eval_windows_sih_mvp_anomaly.csv",
+      "category": "evaluation",
+      "bytes": 63536,
+      "sha256": "ba5c2be941275dcfb19c67d995f093f70dac57f2efdf4430db621c2b81ee7ec1",
+      "git_blob": "0eee31adbc53b3661e60524e7791a63a1f0bfaf6"
+    },
+    {
+      "path": "results/sih/sih_overview_M_sih_mvp.png",
+      "category": "plot",
+      "bytes": 444372,
+      "sha256": "7291dfde69f3cf507c46a900115940282804955cfb18707851de0776d33bbae6",
+      "git_blob": "4beae9ec58fc52a1c529fe45cf37e5844df22b33"
+    },
+    {
+      "path": "results/sih/sih_overview_S1_sih_mvp.png",
+      "category": "plot",
+      "bytes": 334683,
+      "sha256": "dced185c444fb9eb7463a8957a1983a0b29245b8459e20159123ab8a5ad0209a",
+      "git_blob": "81b8cdcd1b4f7132b501763dba0cd55291d013f4"
+    },
+    {
+      "path": "results/sih/sih_panels_sih_mvp.png",
+      "category": "plot",
+      "bytes": 859088,
+      "sha256": "e647e96618067096e10cf135fb73538d75e70e498cf5dfdac9023169a7b940d5",
+      "git_blob": "79da1cc628dbdd3ff90762ea68d06b88a31ea3de"
+    },
+    {
+      "path": "scripts/export_onnx.py",
+      "category": "code",
+      "bytes": 4334,
+      "sha256": "f52f7268672d20aa4b983b0ccbf6e8e33aa258add5ddf16780381bd6582fc885",
+      "git_blob": "849647e45b142b4483aa39e913dd8f4734ca1156"
+    },
+    {
+      "path": "src/__init__.py",
+      "category": "code",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "git_blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391"
+    },
+    {
+      "path": "src/anomaly_detector.py",
+      "category": "code",
+      "bytes": 6901,
+      "sha256": "e7c5d794c3eb6b3fbff5a868159700b83b12220c84fa21ae512ca8524a730e2f",
+      "git_blob": "cb24fa4cf980238ab15971780301e21e06d65889"
+    },
+    {
+      "path": "src/audit.py",
+      "category": "code",
+      "bytes": 8497,
+      "sha256": "29d40043b596a554f806ce8d2d254aacffaadd86ed5289dee4ff54763369b44f",
+      "git_blob": "ffe7a760b9a215a2df89f69e7b8a51d7da383ffb"
+    },
+    {
+      "path": "src/blackout.py",
+      "category": "code",
+      "bytes": 5175,
+      "sha256": "79c72ae9c1dce2e517689d36eb7422d9097cb7d553cc564e7d8e8054a1337a16",
+      "git_blob": "bca9293d4c491af42a71ba9f7be03f70638f2813"
+    },
+    {
+      "path": "src/config.py",
+      "category": "code",
+      "bytes": 1460,
+      "sha256": "2f6ca915dd337a949074b737208a619811d18c238ff93ddc457eeb9c8aad8b5d",
+      "git_blob": "0d2388005e2831b7d77b8af884618035ae70eabc"
+    },
+    {
+      "path": "src/constraints/__init__.py",
+      "category": "code",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "git_blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391"
+    },
+    {
+      "path": "src/constraints/fetch_osm.py",
+      "category": "code",
+      "bytes": 1418,
+      "sha256": "f0f01849d643e0b336219c208bc6578ef5aac02706dd26bb50931d24f34d6b1a",
+      "git_blob": "7b9bea13ee194e0390678f43f8d92408929c9511"
+    },
+    {
+      "path": "src/constraints/map_match.py",
+      "category": "code",
+      "bytes": 11208,
+      "sha256": "57941bef8eb2fb24be347648f184f02da003c769aea7f5d436f1072a2d462ac8",
+      "git_blob": "5a4897c8fc01c833bbfa691c2633aa1249a539e8"
+    },
+    {
+      "path": "src/constraints/nhc.py",
+      "category": "code",
+      "bytes": 689,
+      "sha256": "0357a300cf89fea5dc67ef14caebc366d34a0b87fd7d88b6d04edbc62081a484",
+      "git_blob": "8ae20af35fb222b6e3532583d98dd18e25085966"
+    },
+    {
+      "path": "src/data_io.py",
+      "category": "code",
+      "bytes": 17759,
+      "sha256": "634fadb9b93ad68d9e8be169fd59e0406dd85ef7d8fca0925137c42bf0f4f588",
+      "git_blob": "f9e9d69b2278a5a410b007da160695f9f2dc5a81"
+    },
+    {
+      "path": "src/dataset.py",
+      "category": "code",
+      "bytes": 2887,
+      "sha256": "e253f71fb8ea51e18b5b655aa107eba4590f01ba60cb82461293004317049cb9",
+      "git_blob": "7483bb50370cd2db896c4537e7873a204a126bfe"
+    },
+    {
+      "path": "src/demo_replay.py",
+      "category": "code",
+      "bytes": 7011,
+      "sha256": "93d0c6eafd0fee7ba210fd851fab84cd9405d2e894bc22199543682ff6e46503",
+      "git_blob": "1b1f1bd21af3cc41aeab8882713f057112ba8b5c"
+    },
+    {
+      "path": "src/download_data.py",
+      "category": "code",
+      "bytes": 3792,
+      "sha256": "9d52a5f0aaf0526f294ed1f580c92651ff21018e92185c0d3e5dc77a2170d708",
+      "git_blob": "b2950334950bbfd004ab646ab464d58c9ec58f89"
+    },
+    {
+      "path": "src/engine.py",
+      "category": "code",
+      "bytes": 14701,
+      "sha256": "713ae9978def05ad967e578117ac1ff1a5ae7e533e3fcddf67e5111733542ada",
+      "git_blob": "67fef967ddd98f817c423fd905512d2ba3d8e0b6"
+    },
+    {
+      "path": "src/evaluate.py",
+      "category": "code",
+      "bytes": 22588,
+      "sha256": "8111b8cb62d927142e132f639231432e551f5214f31c7fed7c91efbf3996da15",
+      "git_blob": "bb5aa7e7f17d5333280fda27722f7a95f1545246"
+    },
+    {
+      "path": "src/fusion/__init__.py",
+      "category": "code",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "git_blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391"
+    },
+    {
+      "path": "src/fusion/ekf2d.py",
+      "category": "code",
+      "bytes": 15787,
+      "sha256": "9283685eee39601048d22cf869e74d4eaccc8f20f5840cca20fd59dc1ffd90c1",
+      "git_blob": "a90eb9b395f9b91265095ffd2f7cfcb6e37094ba"
+    },
+    {
+      "path": "src/metrics.py",
+      "category": "code",
+      "bytes": 2602,
+      "sha256": "f431b8b3f7725db2b67b3df83f631bd7da99dad816a7498e5705bfcf48fc22c4",
+      "git_blob": "78c1959e65bf2d248b67c93e2f546570cf100eea"
+    },
+    {
+      "path": "src/models/__init__.py",
+      "category": "code",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "git_blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391"
+    },
+    {
+      "path": "src/models/motion_net.py",
+      "category": "code",
+      "bytes": 5584,
+      "sha256": "fca224ef86829279b06ea164cb62820aabdc9754811067f2cab20716b6b7bf58",
+      "git_blob": "ab18d42c5cb41f7f627274a28b72c71798cca556"
+    },
+    {
+      "path": "src/preprocess.py",
+      "category": "code",
+      "bytes": 18194,
+      "sha256": "4acbe7d246dcbaa34b4787d6c623288b63f3565a09199403c60429e23e91665e",
+      "git_blob": "eec8a02234c48b4ef868659a13519bf63c1e7f37"
+    },
+    {
+      "path": "src/sensors.py",
+      "category": "code",
+      "bytes": 3885,
+      "sha256": "18380261cd89be4ce7e52ba6ee7916e6b4bfd7f74fea6e34d1421086ed790493",
+      "git_blob": "5abdadd4492ca3d4741f14342d328f2cc85dbd77"
+    },
+    {
+      "path": "src/synthetic.py",
+      "category": "code",
+      "bytes": 3946,
+      "sha256": "3b3a2b95564b32f1b7abdf552376f032e2718e9ea7f237bae50c04c1515692e4",
+      "git_blob": "fbcd55095a188e71a59ade396e56d254a545e783"
+    },
+    {
+      "path": "src/train_motion.py",
+      "category": "code",
+      "bytes": 9600,
+      "sha256": "580ed3021971dca6a1adb335ac0d62a3cef08b87bc276092f769fb01a5519e7f",
+      "git_blob": "7954f3ba2b41b1b778ee374154e73ea5aac7317a"
+    },
+    {
+      "path": "src/ui/__init__.py",
+      "category": "code",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "git_blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391"
+    },
+    {
+      "path": "src/ui/app.py",
+      "category": "code",
+      "bytes": 12581,
+      "sha256": "52c26900734858b5643735601cd86f39e5a3f96718581b245130e75e3452898f",
+      "git_blob": "0020be609e1d4cfbf14ca390eca1c3d41ac51be7"
+    },
+    {
+      "path": "src/ui/sim.py",
+      "category": "code",
+      "bytes": 6371,
+      "sha256": "0aeb8e8f15baece251c32ae034d02cb8680f8ef97e177fc3d34996e5b8e3396a",
+      "git_blob": "ccdc2a999cdc901431098a12ddd63c21c0931e3b"
+    },
+    {
+      "path": "tests/conftest.py",
+      "category": "test",
+      "bytes": 499,
+      "sha256": "41f51af1498c84be8eb582cca0a532a03177dadb0d3324c1a1f5be5cae14e26b",
+      "git_blob": "6f0a30a8130db60cce8001ad52a4bb2de13a3129"
+    },
+    {
+      "path": "tests/test_anomaly.py",
+      "category": "test",
+      "bytes": 3076,
+      "sha256": "a0e552943a3e770f111c1e69f9f995cfce4a8f496c1918a4e7fb29398e0db9a3",
+      "git_blob": "0fd3627d225ed678f5995cc330a09c0f04d6c2f2"
+    },
+    {
+      "path": "tests/test_blackout.py",
+      "category": "test",
+      "bytes": 2280,
+      "sha256": "039d6c426c023f6c506823005f93c3838ae893f17ca1ef1a57fd9d4932ad255e",
+      "git_blob": "b8f46077e608eef5d9704d91463b8e17d6890a4d"
+    },
+    {
+      "path": "tests/test_map_match.py",
+      "category": "test",
+      "bytes": 3400,
+      "sha256": "fc187dca4a7e19a8457a94baec28d6c1cc0eaf34bbeb77d9794cf9b37c69cc3d",
+      "git_blob": "4f40b77ee20c2a3c7c1e52f15fe8d5e36a80cc49"
+    },
+    {
+      "path": "tests/test_navigation.py",
+      "category": "test",
+      "bytes": 18993,
+      "sha256": "af6c929d909e8ae217a3b23f342a1f19ac7b2693fbf0a2f87151f0c06faf03fc",
+      "git_blob": "b67fb981b9e7410517e120a3b881d55d42f73a15"
+    },
+    {
+      "path": "tests/test_no_gnss_leakage.py",
+      "category": "test",
+      "bytes": 5271,
+      "sha256": "50ab063f8b594704a88bf3ca6e0d53f04e3cc9b63a3046fc1adc351f9c534753",
+      "git_blob": "f4dc5d09066740a52234108dc42e7605f198dfb4"
+    },
+    {
+      "path": "tests/test_splits.py",
+      "category": "test",
+      "bytes": 1670,
+      "sha256": "ada3fdc125ee9227067086fab293afac6e4404e8ba1de5accb76e398b2de175f",
+      "git_blob": "0bce0270e01ea5c4a822d760298815dc11ecd2a0"
+    },
+    {
+      "path": "tests/test_timestamps.py",
+      "category": "test",
+      "bytes": 4938,
+      "sha256": "7bdd11a04b3614caf782a560b9d01d9a6670946edd9a534155158db01bac9f39",
+      "git_blob": "db997d5fcb43bbc8022342e6c30481c93d56c5ed"
+    }
+  ],
+  "external_dataset": {
+    "name": "IO-VNBD (onyekpeu/IO-VNBD), synchronised V and S drives",
+    "in_repository": false,
+    "reason": "data/ is git-ignored; ~408 MB of CSVs fetched by src/download_data.py",
+    "source_url": "https://media.githubusercontent.com/media/onyekpeu/IO-VNBD/master/",
+    "drives": 72,
+    "files": 144,
+    "total_bytes": 426448958,
+    "integrity": "per-file SHA-256 in configs/iovnbd_manifest.csv (LFS object ids)",
+    "verified_in_this_session": {
+      "command": "python -m src.download_data --data-root <scratch>/data/iovnbd",
+      "result": "144 / 144 files downloaded, every SHA-256 matched configs/iovnbd_manifest.csv, exit 0",
+      "size_on_disk": "408 MB",
+      "location": "session scratchpad, outside the repository (data/ is git-ignored and not committed)",
+      "log": "preservation/logs/download.log"
+    }
+  },
+  "historical_reported_baseline": {
+    "source": "README.md; docs/DETAILED_MVP_REPORT.md section 1.2; results/sih/eval_windows_sih_mvp_anomaly.csv",
+    "variant": "D: MotionNet + EKF + lever-arm NHC + training-track map proxy, anomaly detector on",
+    "config": "configs/sih_mvp.yaml (inherits configs/base.yaml)",
+    "test_drives": [
+      "S1",
+      "M"
+    ],
+    "windows_per_duration": 12,
+    "median_drift_pct": {
+      "30s": 17.0,
+      "60s": 9.91,
+      "120s": 21.33
+    }
+  },
+  "reproduction": {
+    "date": "2026-10-15",
+    "principle": "every command ran against AVIRAT-V1-ARCHIVE (tests, ONNX check) or a disposable copy of it (benchmark, audit); no archived artifact was modified, regenerated in place or retrained",
+    "environment": {
+      "platform": "Linux x86_64 cloud container, 4 vCPU, no GPU",
+      "python": "3.13.16",
+      "torch": "2.14.1 (PyPI CUDA build, run on CPU; torch.cuda.is_available() == False)",
+      "full_package_list": "preservation/logs/pip_freeze.txt",
+      "note": "requirements.txt pins only lower bounds; the original MVP library versions are not recorded in the repository"
+    },
+    "dataset_download": {
+      "command": "python -m src.download_data --data-root <scratch>/data/iovnbd",
+      "result": "144 / 144 files downloaded, every SHA-256 matched configs/iovnbd_manifest.csv, exit 0",
+      "size_on_disk": "408 MB",
+      "location": "session scratchpad, outside the repository (data/ is git-ignored and not committed)",
+      "log": "preservation/logs/download.log"
+    },
+    "unit_tests": {
+      "command": "python -m pytest -p no:cacheprovider -v -rA   (cwd = AVIRAT-V1-ARCHIVE)",
+      "collected": 73,
+      "passed": 73,
+      "failed": 0,
+      "skipped": 0,
+      "errors": 0,
+      "duration_s": 58.53,
+      "log": "preservation/logs/pytest_v1.log"
+    },
+    "benchmark": {
+      "command": "python -m src.evaluate --config configs/sih_mvp.yaml --tag sih_mvp --sih-plots",
+      "exit_code": 0,
+      "wall_time": "7 min 12 s",
+      "compared_against": "AVIRAT-V1-ARCHIVE/results/sih/eval_windows_sih_mvp_anomaly.csv",
+      "windows": 36,
+      "rows": 180,
+      "rows_matching_within_1e-9": 180,
+      "max_abs_diff_any_metric": 2.19e-11,
+      "max_abs_diff_D_drift_pct": 4.8e-13,
+      "bit_identical": false,
+      "bit_identical_note": "values agree to ~1e-11 (floating-point noise from newer numpy/scipy/torch); the CSV text is not byte-identical",
+      "variant_D_median_drift_pct": {
+        "30s": 16.9961,
+        "60s": 9.9076,
+        "120s": 21.3309
+      },
+      "variant_D_median_drift_pct_rounded": {
+        "30s": 17.0,
+        "60s": 9.91,
+        "120s": 21.33
+      },
+      "variant_D_p90_drift_pct": {
+        "30s": 24.52,
+        "60s": 21.18,
+        "120s": 43.17
+      },
+      "variant_D_worst_window_pct": {
+        "30s": 25.72,
+        "60s": 23.37,
+        "120s": 44.99
+      },
+      "variant_D_median_endpoint_m": {
+        "30s": 30.52,
+        "60s": 42.09,
+        "120s": 202.53
+      },
+      "variant_D_median_by_drive_pct": {
+        "S1": {
+          "30s": 19.08,
+          "60s": 11.38,
+          "120s": 31.32
+        },
+        "M": {
+          "30s": 15.06,
+          "60s": 8.86,
+          "120s": 12.91
+        }
+      },
+      "variant_CNHC_no_map_median_drift_pct": {
+        "30s": 17.0,
+        "60s": 11.38,
+        "120s": 21.33
+      },
+      "variant_A_raw_ins_median_drift_pct": {
+        "30s": 80.29,
+        "60s": 107.41,
+        "120s": 171.38
+      },
+      "windows_60s_below_10pct": "6 / 12",
+      "D_better_than_A": "35 / 36 windows",
+      "gnss_updates_inside_blackouts": 0,
+      "anomaly_detector": "22 shocks + 1 transient on S1+M, 0 slips, 0 inside blackouts (as originally reported)",
+      "eval_meta_json": "identical to the archived results/sih/eval_meta_sih_mvp.json",
+      "plots": "regenerated into preservation/reproduction/benchmark_sih_mvp/plots/; not byte-identical to the archived PNGs (matplotlib version), not used for scoring",
+      "outputs": "preservation/reproduction/benchmark_sih_mvp/",
+      "comparison": "preservation/reproduction/window_comparison.json",
+      "log": "preservation/logs/eval_sih_mvp.log"
+    },
+    "leakage_audit": {
+      "command": "python -m src.audit leakage --config configs/sih_mvp.yaml",
+      "result": "PASS, 10 / 10 checks",
+      "byte_identical_to_archived": "results/metrics/leakage_audit.json",
+      "log": "preservation/logs/audit_leakage.log"
+    },
+    "onnx_parity": {
+      "command": "python -B preservation/onnx_parity_readonly.py AVIRAT-V1-ARCHIVE",
+      "result": "PASS; onnx.checker OK; max |speed diff| 3.81e-6 m/s, max |sigma diff| 4.77e-6 m/s on 64 seeded windows (identical to the archived sidecar)",
+      "why_not_export_onnx_py": "scripts/export_onnx.py re-exports and overwrites results/models/motionnet_mobile.onnx, so the committed file was tested read-only instead",
+      "log": "preservation/logs/onnx_parity_v1.json"
+    },
+    "not_reproduced": [
+      {
+        "item": "MotionNet training (python -m src.train_motion)",
+        "reason": "it overwrites results/models/motionnet.pt; the committed weights are the baseline. Retraining belongs in V2 under a new output path"
+      },
+      {
+        "item": "archive_experiments ablations and tuning sweep",
+        "reason": "not part of the reported baseline; data is now available, so they can be re-run in a copy on request"
+      },
+      {
+        "item": "Streamlit dashboard",
+        "reason": "streamlit/plotly not installed; UI replay is not a benchmark artifact. src/ui/sim.py is documented to match src.evaluate"
+      },
+      {
+        "item": "OSM map results",
+        "reason": "overpass-api.de is blocked by the session egress proxy, same blocker as the original build"
+      },
+      {
+        "item": "on-device ONNX inference",
+        "reason": "no Android device in the container"
+      },
+      {
+        "item": "phone-GNSS variant (about 34 / 21 / 50%)",
+        "reason": "a README figure without a committed per-window file; not part of the baseline"
+      }
+    ]
+  }
+}

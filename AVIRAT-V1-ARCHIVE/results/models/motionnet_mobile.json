@@ -1,0 +1,31 @@
+{
+  "source": "results/models/motionnet.pt",
+  "opset": 17,
+  "input": {
+    "name": "features",
+    "shape": [
+      1,
+      50,
+      5
+    ],
+    "dtype": "float32",
+    "rate_hz": 10,
+    "columns": [
+      "a_f",
+      "a_l",
+      "a_u",
+      "w_u",
+      "w_h"
+    ]
+  },
+  "outputs": {
+    "speed": "m/s, forward speed",
+    "sigma": "m/s, 1-sigma (validation-calibrated)"
+  },
+  "normalisation": "baked into the graph",
+  "params": 17922,
+  "parity_max_abs_diff": {
+    "speed": 3.814697265625e-06,
+    "sigma": 4.76837158203125e-06
+  }
+}

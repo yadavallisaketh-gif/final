@@ -1,0 +1,155 @@
+============================= test session starts ==============================
+platform linux -- Python 3.13.16, pytest-9.1.1, pluggy-1.7.0 -- /tmp/claude-0/-home-user-final/ad96db08-fb84-5347-ab3c-569ecffef14c/scratchpad/venv/bin/python
+rootdir: /home/user/final/AVIRAT-V1-ARCHIVE
+collecting ... collected 73 items
+
+tests/test_anomaly.py::test_clean_drive_with_turns_raises_nothing PASSED [  1%]
+tests/test_anomaly.py::test_pothole_spike_is_a_shock PASSED              [  2%]
+tests/test_anomaly.py::test_mount_slip_is_confirmed_and_relevels PASSED  [  4%]
+tests/test_anomaly.py::test_gyro_burst_without_tilt_change_is_a_transient PASSED [  5%]
+tests/test_anomaly.py::test_engine_inflates_accel_noise_after_a_shock_and_relevels_after_a_slip PASSED [  6%]
+tests/test_blackout.py::test_windows_are_deterministic_and_inside_one_session PASSED [  8%]
+tests/test_blackout.py::test_windows_skip_unlabelled_and_stationary PASSED [  9%]
+tests/test_blackout.py::test_hidden_truth_is_a_copy PASSED               [ 10%]
+tests/test_blackout.py::test_drift_percent_definition PASSED             [ 12%]
+tests/test_map_match.py::test_matches_nearest_heading_consistent_road PASSED [ 13%]
+tests/test_map_match.py::test_heading_disambiguates_crossing PASSED      [ 15%]
+tests/test_map_match.py::test_reverse_direction_on_two_way_road PASSED   [ 16%]
+tests/test_map_match.py::test_rejects_far_or_crosswise_positions PASSED  [ 17%]
+tests/test_map_match.py::test_continuity_prefers_previous_road PASSED    [ 19%]
+tests/test_map_match.py::test_load_overpass_json PASSED                  [ 20%]
+tests/test_map_match.py::test_trace_network PASSED                       [ 21%]
+tests/test_map_match.py::test_ambiguous_junction_is_skipped PASSED       [ 23%]
+tests/test_navigation.py::test_alignment_recovers_mount_angle PASSED     [ 24%]
+tests/test_navigation.py::test_streaming_equals_block_preprocessing PASSED [ 26%]
+tests/test_navigation.py::test_ekf_tracks_straight_line PASSED           [ 27%]
+tests/test_navigation.py::test_ekf_estimates_gyro_bias PASSED            [ 28%]
+tests/test_navigation.py::test_nhc_suppresses_lateral_drift_without_inventing_a_turn PASSED [ 30%]
+tests/test_navigation.py::test_nhc_observes_gyro_bias_during_blackout PASSED [ 31%]
+tests/test_navigation.py::test_zaru_estimates_gyro_bias_at_a_stop PASSED [ 32%]
+tests/test_navigation.py::test_process_noise_is_rate_invariant PASSED    [ 34%]
+tests/test_navigation.py::test_nhc_information_is_rate_invariant PASSED  [ 35%]
+tests/test_navigation.py::test_filter_dimensions_through_a_full_cycle PASSED [ 36%]
+tests/test_navigation.py::test_motionnet_bias_is_gauss_markov PASSED     [ 38%]
+tests/test_navigation.py::test_motionnet_bias_calibrated_before_blackout_and_removed_during_it PASSED [ 39%]
+tests/test_navigation.py::test_accel_bias_clamped_in_gnss_denial PASSED  [ 41%]
+tests/test_navigation.py::test_nhc_never_changes_position_or_forward_speed PASSED [ 42%]
+tests/test_navigation.py::test_dynamic_attitude_removes_grade_leakage PASSED [ 43%]
+tests/test_navigation.py::test_attitude_filter_tracks_pitch_with_gyro PASSED [ 45%]
+tests/test_navigation.py::test_lever_arm_removes_phantom_lateral_innovation_in_a_turn PASSED [ 46%]
+tests/test_navigation.py::test_without_lever_arm_the_same_turn_injects_false_corrections PASSED [ 47%]
+tests/test_navigation.py::test_nhc_is_skipped_in_aggressive_cornering PASSED [ 49%]
+tests/test_navigation.py::test_nhc_noise_inflates_with_turn_rate_and_lateral_accel PASSED [ 50%]
+tests/test_navigation.py::test_motionnet_update_rate_and_r_inflation PASSED [ 52%]
+tests/test_navigation.py::test_engine_blackout_filtered_beats_raw_with_bias PASSED [ 53%]
+tests/test_navigation.py::test_reacquisition_is_gradual PASSED           [ 54%]
+tests/test_navigation.py::test_same_engine_runs_on_a_200hz_external_imu PASSED [ 56%]
+tests/test_navigation.py::test_blackout_speed_decoupled_from_forward_accelerometer PASSED [ 57%]
+tests/test_navigation.py::test_config_profile_inherits_base PASSED       [ 58%]
+tests/test_no_gnss_leakage.py::test_estimator_input_has_no_reference_columns PASSED [ 60%]
+tests/test_no_gnss_leakage.py::test_gnss_masked_inside_blackout PASSED   [ 61%]
+tests/test_no_gnss_leakage.py::test_tampering_with_the_mask_is_detected PASSED [ 63%]
+tests/test_no_gnss_leakage.py::test_replay_source_emits_no_fix_inside_blackout PASSED [ 64%]
+tests/test_no_gnss_leakage.py::test_no_gnss_update_during_blackout_any_variant[A] PASSED [ 65%]
+tests/test_no_gnss_leakage.py::test_no_gnss_update_during_blackout_any_variant[B] PASSED [ 67%]
+tests/test_no_gnss_leakage.py::test_no_gnss_update_during_blackout_any_variant[C] PASSED [ 68%]
+tests/test_no_gnss_leakage.py::test_no_gnss_update_during_blackout_any_variant[C+NHC] PASSED [ 69%]
+tests/test_no_gnss_leakage.py::test_no_gnss_update_during_blackout_any_variant[D] PASSED [ 71%]
+tests/test_no_gnss_leakage.py::test_gnss_toggle_off_removes_all_gnss_updates PASSED [ 72%]
+tests/test_no_gnss_leakage.py::test_ekf_refuses_gnss_when_disabled PASSED [ 73%]
+tests/test_no_gnss_leakage.py::test_forbidden_features_rejected[gnss_speed] PASSED [ 75%]
+tests/test_no_gnss_leakage.py::test_forbidden_features_rejected[ref_speed] PASSED [ 76%]
+tests/test_no_gnss_leakage.py::test_forbidden_features_rejected[gps_lat] PASSED [ 78%]
+tests/test_no_gnss_leakage.py::test_forbidden_features_rejected[wheel_speed] PASSED [ 79%]
+tests/test_no_gnss_leakage.py::test_forbidden_features_rejected[ref_x] PASSED [ 80%]
+tests/test_no_gnss_leakage.py::test_forbidden_features_rejected[speed] PASSED [ 82%]
+tests/test_no_gnss_leakage.py::test_model_input_shape_is_enforced PASSED [ 83%]
+tests/test_no_gnss_leakage.py::test_model_checkpoint_roundtrip PASSED    [ 84%]
+tests/test_splits.py::test_configured_split_is_disjoint PASSED           [ 86%]
+tests/test_splits.py::test_overlapping_split_is_rejected PASSED          [ 87%]
+tests/test_splits.py::test_windows_never_cross_unlabelled_gaps PASSED    [ 89%]
+tests/test_splits.py::test_window_target_is_last_sample_no_future PASSED [ 90%]
+tests/test_splits.py::test_windows_from_different_drives_stay_apart PASSED [ 91%]
+tests/test_timestamps.py::test_audit_flags_bad_timestamps PASSED         [ 93%]
+tests/test_timestamps.py::test_audit_detects_units PASSED                [ 94%]
+tests/test_timestamps.py::test_estimate_lag_recovers_known_offset PASSED [ 95%]
+tests/test_timestamps.py::test_synchronise_labels_only_correlated_segments PASSED [ 97%]
+tests/test_timestamps.py::test_geodesy_roundtrip_and_heading_convention PASSED [ 98%]
+tests/test_timestamps.py::test_session_split_at_gaps PASSED              [100%]
+
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED tests/test_anomaly.py::test_clean_drive_with_turns_raises_nothing
+PASSED tests/test_anomaly.py::test_pothole_spike_is_a_shock
+PASSED tests/test_anomaly.py::test_mount_slip_is_confirmed_and_relevels
+PASSED tests/test_anomaly.py::test_gyro_burst_without_tilt_change_is_a_transient
+PASSED tests/test_anomaly.py::test_engine_inflates_accel_noise_after_a_shock_and_relevels_after_a_slip
+PASSED tests/test_blackout.py::test_windows_are_deterministic_and_inside_one_session
+PASSED tests/test_blackout.py::test_windows_skip_unlabelled_and_stationary
+PASSED tests/test_blackout.py::test_hidden_truth_is_a_copy
+PASSED tests/test_blackout.py::test_drift_percent_definition
+PASSED tests/test_map_match.py::test_matches_nearest_heading_consistent_road
+PASSED tests/test_map_match.py::test_heading_disambiguates_crossing
+PASSED tests/test_map_match.py::test_reverse_direction_on_two_way_road
+PASSED tests/test_map_match.py::test_rejects_far_or_crosswise_positions
+PASSED tests/test_map_match.py::test_continuity_prefers_previous_road
+PASSED tests/test_map_match.py::test_load_overpass_json
+PASSED tests/test_map_match.py::test_trace_network
+PASSED tests/test_map_match.py::test_ambiguous_junction_is_skipped
+PASSED tests/test_navigation.py::test_alignment_recovers_mount_angle
+PASSED tests/test_navigation.py::test_streaming_equals_block_preprocessing
+PASSED tests/test_navigation.py::test_ekf_tracks_straight_line
+PASSED tests/test_navigation.py::test_ekf_estimates_gyro_bias
+PASSED tests/test_navigation.py::test_nhc_suppresses_lateral_drift_without_inventing_a_turn
+PASSED tests/test_navigation.py::test_nhc_observes_gyro_bias_during_blackout
+PASSED tests/test_navigation.py::test_zaru_estimates_gyro_bias_at_a_stop
+PASSED tests/test_navigation.py::test_process_noise_is_rate_invariant
+PASSED tests/test_navigation.py::test_nhc_information_is_rate_invariant
+PASSED tests/test_navigation.py::test_filter_dimensions_through_a_full_cycle
+PASSED tests/test_navigation.py::test_motionnet_bias_is_gauss_markov
+PASSED tests/test_navigation.py::test_motionnet_bias_calibrated_before_blackout_and_removed_during_it
+PASSED tests/test_navigation.py::test_accel_bias_clamped_in_gnss_denial
+PASSED tests/test_navigation.py::test_nhc_never_changes_position_or_forward_speed
+PASSED tests/test_navigation.py::test_dynamic_attitude_removes_grade_leakage
+PASSED tests/test_navigation.py::test_attitude_filter_tracks_pitch_with_gyro
+PASSED tests/test_navigation.py::test_lever_arm_removes_phantom_lateral_innovation_in_a_turn
+PASSED tests/test_navigation.py::test_without_lever_arm_the_same_turn_injects_false_corrections
+PASSED tests/test_navigation.py::test_nhc_is_skipped_in_aggressive_cornering
+PASSED tests/test_navigation.py::test_nhc_noise_inflates_with_turn_rate_and_lateral_accel
+PASSED tests/test_navigation.py::test_motionnet_update_rate_and_r_inflation
+PASSED tests/test_navigation.py::test_engine_blackout_filtered_beats_raw_with_bias
+PASSED tests/test_navigation.py::test_reacquisition_is_gradual
+PASSED tests/test_navigation.py::test_same_engine_runs_on_a_200hz_external_imu
+PASSED tests/test_navigation.py::test_blackout_speed_decoupled_from_forward_accelerometer
+PASSED tests/test_navigation.py::test_config_profile_inherits_base
+PASSED tests/test_no_gnss_leakage.py::test_estimator_input_has_no_reference_columns
+PASSED tests/test_no_gnss_leakage.py::test_gnss_masked_inside_blackout
+PASSED tests/test_no_gnss_leakage.py::test_tampering_with_the_mask_is_detected
+PASSED tests/test_no_gnss_leakage.py::test_replay_source_emits_no_fix_inside_blackout
+PASSED tests/test_no_gnss_leakage.py::test_no_gnss_update_during_blackout_any_variant[A]
+PASSED tests/test_no_gnss_leakage.py::test_no_gnss_update_during_blackout_any_variant[B]
+PASSED tests/test_no_gnss_leakage.py::test_no_gnss_update_during_blackout_any_variant[C]
+PASSED tests/test_no_gnss_leakage.py::test_no_gnss_update_during_blackout_any_variant[C+NHC]
+PASSED tests/test_no_gnss_leakage.py::test_no_gnss_update_during_blackout_any_variant[D]
+PASSED tests/test_no_gnss_leakage.py::test_gnss_toggle_off_removes_all_gnss_updates
+PASSED tests/test_no_gnss_leakage.py::test_ekf_refuses_gnss_when_disabled
+PASSED tests/test_no_gnss_leakage.py::test_forbidden_features_rejected[gnss_speed]
+PASSED tests/test_no_gnss_leakage.py::test_forbidden_features_rejected[ref_speed]
+PASSED tests/test_no_gnss_leakage.py::test_forbidden_features_rejected[gps_lat]
+PASSED tests/test_no_gnss_leakage.py::test_forbidden_features_rejected[wheel_speed]
+PASSED tests/test_no_gnss_leakage.py::test_forbidden_features_rejected[ref_x]
+PASSED tests/test_no_gnss_leakage.py::test_forbidden_features_rejected[speed]
+PASSED tests/test_no_gnss_leakage.py::test_model_input_shape_is_enforced
+PASSED tests/test_no_gnss_leakage.py::test_model_checkpoint_roundtrip
+PASSED tests/test_splits.py::test_configured_split_is_disjoint
+PASSED tests/test_splits.py::test_overlapping_split_is_rejected
+PASSED tests/test_splits.py::test_windows_never_cross_unlabelled_gaps
+PASSED tests/test_splits.py::test_window_target_is_last_sample_no_future
+PASSED tests/test_splits.py::test_windows_from_different_drives_stay_apart
+PASSED tests/test_timestamps.py::test_audit_flags_bad_timestamps
+PASSED tests/test_timestamps.py::test_audit_detects_units
+PASSED tests/test_timestamps.py::test_estimate_lag_recovers_known_offset
+PASSED tests/test_timestamps.py::test_synchronise_labels_only_correlated_segments
+PASSED tests/test_timestamps.py::test_geodesy_roundtrip_and_heading_convention
+PASSED tests/test_timestamps.py::test_session_split_at_gaps
+============================= 73 passed in 58.53s ==============================

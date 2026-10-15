@@ -1,0 +1,54 @@
+{
+  "drives": [
+    "S1",
+    "M"
+  ],
+  "train_drives": [
+    "S2",
+    "S3a",
+    "S3b",
+    "S4",
+    "Vw4",
+    "Vw2",
+    "Vfa02",
+    "Vta1a",
+    "Vw14c",
+    "Vta2",
+    "Vw11",
+    "Vta28",
+    "Vta8",
+    "Vw3",
+    "Vta30",
+    "Vta29",
+    "Vta17",
+    "Vtb3",
+    "Vta21",
+    "Vta22",
+    "Vta24",
+    "Vta1b",
+    "Vw5",
+    "Vw6",
+    "Vta11",
+    "Vta25",
+    "Vta7",
+    "Vw9",
+    "Vtb12",
+    "Vta5"
+  ],
+  "val_drives": [
+    "S3c",
+    "Vta16",
+    "Vfa01"
+  ],
+  "variants": {
+    "A": "A: Raw INS",
+    "B": "B: Filtered INS",
+    "C": "C: ML + EKF",
+    "C+NHC": "C+NHC: ML + EKF + NHC (no map)",
+    "D": "D: ML + EKF + NHC + map"
+  },
+  "map_source": "trace-derived from training drives",
+  "gnss_source": "vehicle",
+  "windows": 36,
+  "gnss_updates_inside_blackouts": 0
+}

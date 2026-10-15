@@ -1,0 +1,10 @@
+data/
+outputs/
+!outputs/.gitkeep
+__pycache__/
+*.pyc
+.pytest_cache/
+*.part
+
+# submission archive (build artifact, rebuilt from the repository)
+SIH26168_Submission.zip

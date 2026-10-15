@@ -1,0 +1,2 @@
+# AVIRAT-V1-ARCHIVE is a frozen, hash-verified snapshot: never normalise its line endings or auto-merge into it.
+AVIRAT-V1-ARCHIVE/** -text -merge

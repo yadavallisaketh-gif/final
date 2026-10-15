@@ -1,0 +1,74 @@
+{
+  "date": "2026-10-15",
+  "principle": "every command ran against AVIRAT-V1-ARCHIVE (tests, ONNX check) or a disposable copy of it (benchmark, audit); no archived artifact was modified, regenerated in place or retrained",
+  "environment": {
+    "platform": "Linux x86_64 cloud container, 4 vCPU, no GPU",
+    "python": "3.13.16",
+    "torch": "2.14.1 (PyPI CUDA build, run on CPU; torch.cuda.is_available() == False)",
+    "full_package_list": "preservation/logs/pip_freeze.txt",
+    "note": "requirements.txt pins only lower bounds; the original MVP library versions are not recorded in the repository"
+  },
+  "dataset_download": {
+    "command": "python -m src.download_data --data-root <scratch>/data/iovnbd",
+    "result": "144 / 144 files downloaded, every SHA-256 matched configs/iovnbd_manifest.csv, exit 0",
+    "size_on_disk": "408 MB",
+    "location": "session scratchpad, outside the repository (data/ is git-ignored and not committed)",
+    "log": "preservation/logs/download.log"
+  },
+  "unit_tests": {
+    "command": "python -m pytest -p no:cacheprovider -v -rA   (cwd = AVIRAT-V1-ARCHIVE)",
+    "collected": 73, "passed": 73, "failed": 0, "skipped": 0, "errors": 0,
+    "duration_s": 58.53,
+    "log": "preservation/logs/pytest_v1.log"
+  },
+  "benchmark": {
+    "command": "python -m src.evaluate --config configs/sih_mvp.yaml --tag sih_mvp --sih-plots",
+    "exit_code": 0,
+    "wall_time": "7 min 12 s",
+    "compared_against": "AVIRAT-V1-ARCHIVE/results/sih/eval_windows_sih_mvp_anomaly.csv",
+    "windows": 36, "rows": 180,
+    "rows_matching_within_1e-9": 180,
+    "max_abs_diff_any_metric": 2.19e-11,
+    "max_abs_diff_D_drift_pct": 4.8e-13,
+    "bit_identical": false,
+    "bit_identical_note": "values agree to ~1e-11 (floating-point noise from newer numpy/scipy/torch); the CSV text is not byte-identical",
+    "variant_D_median_drift_pct": {"30s": 16.9961, "60s": 9.9076, "120s": 21.3309},
+    "variant_D_median_drift_pct_rounded": {"30s": 17.00, "60s": 9.91, "120s": 21.33},
+    "variant_D_p90_drift_pct": {"30s": 24.52, "60s": 21.18, "120s": 43.17},
+    "variant_D_worst_window_pct": {"30s": 25.72, "60s": 23.37, "120s": 44.99},
+    "variant_D_median_endpoint_m": {"30s": 30.52, "60s": 42.09, "120s": 202.53},
+    "variant_D_median_by_drive_pct": {"S1": {"30s": 19.08, "60s": 11.38, "120s": 31.32},
+                                       "M": {"30s": 15.06, "60s": 8.86, "120s": 12.91}},
+    "variant_CNHC_no_map_median_drift_pct": {"30s": 17.00, "60s": 11.38, "120s": 21.33},
+    "variant_A_raw_ins_median_drift_pct": {"30s": 80.29, "60s": 107.41, "120s": 171.38},
+    "windows_60s_below_10pct": "6 / 12",
+    "D_better_than_A": "35 / 36 windows",
+    "gnss_updates_inside_blackouts": 0,
+    "anomaly_detector": "22 shocks + 1 transient on S1+M, 0 slips, 0 inside blackouts (as originally reported)",
+    "eval_meta_json": "identical to the archived results/sih/eval_meta_sih_mvp.json",
+    "plots": "regenerated into preservation/reproduction/benchmark_sih_mvp/plots/; not byte-identical to the archived PNGs (matplotlib version), not used for scoring",
+    "outputs": "preservation/reproduction/benchmark_sih_mvp/",
+    "comparison": "preservation/reproduction/window_comparison.json",
+    "log": "preservation/logs/eval_sih_mvp.log"
+  },
+  "leakage_audit": {
+    "command": "python -m src.audit leakage --config configs/sih_mvp.yaml",
+    "result": "PASS, 10 / 10 checks",
+    "byte_identical_to_archived": "results/metrics/leakage_audit.json",
+    "log": "preservation/logs/audit_leakage.log"
+  },
+  "onnx_parity": {
+    "command": "python -B preservation/onnx_parity_readonly.py AVIRAT-V1-ARCHIVE",
+    "result": "PASS; onnx.checker OK; max |speed diff| 3.81e-6 m/s, max |sigma diff| 4.77e-6 m/s on 64 seeded windows (identical to the archived sidecar)",
+    "why_not_export_onnx_py": "scripts/export_onnx.py re-exports and overwrites results/models/motionnet_mobile.onnx, so the committed file was tested read-only instead",
+    "log": "preservation/logs/onnx_parity_v1.json"
+  },
+  "not_reproduced": [
+    {"item": "MotionNet training (python -m src.train_motion)", "reason": "it overwrites results/models/motionnet.pt; the committed weights are the baseline. Retraining belongs in V2 under a new output path"},
+    {"item": "archive_experiments ablations and tuning sweep", "reason": "not part of the reported baseline; data is now available, so they can be re-run in a copy on request"},
+    {"item": "Streamlit dashboard", "reason": "streamlit/plotly not installed; UI replay is not a benchmark artifact. src/ui/sim.py is documented to match src.evaluate"},
+    {"item": "OSM map results", "reason": "overpass-api.de is blocked by the session egress proxy, same blocker as the original build"},
+    {"item": "on-device ONNX inference", "reason": "no Android device in the container"},
+    {"item": "phone-GNSS variant (about 34 / 21 / 50%)", "reason": "a README figure without a committed per-window file; not part of the baseline"}
+  ]
+}

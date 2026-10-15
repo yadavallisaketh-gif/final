@@ -1,0 +1,22 @@
+{
+  "onnx_sha256": "badf90cc18d661fbb055c25963c13257d9cb83fec28439e6e743324cb3190ef8",
+  "pt_sha256": "5e2bfc06e0f057f418b722138a54188d3edbdf81d7544b5d33ad157e1b6afa11",
+  "kind": "gru",
+  "params": 17922,
+  "window": 50,
+  "features": [
+    "a_f",
+    "a_l",
+    "a_u",
+    "w_u",
+    "w_h"
+  ],
+  "input_shape": [
+    1,
+    50,
+    5
+  ],
+  "max_abs_diff_speed": 3.814697265625e-06,
+  "max_abs_diff_sigma": 4.76837158203125e-06,
+  "pass": true
+}
