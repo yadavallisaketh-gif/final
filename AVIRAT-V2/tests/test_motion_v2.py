@@ -8,7 +8,8 @@ import torch
 from src.models.motion_classic import row_features
 from src.models.motion_data import WindowSet, end_indices
 from src.models.motion_eval import error_correlation, recalibrate_conformal, speed_metrics
-from src.models.motion_features import V2_CHANNELS, FeatureStream, VibrationEnergy, session_features_causal
+from src.models.motion_features import (V2_CHANNELS, FeatureStream, VibrationEnergy, energy_offsets,
+                                        session_features_causal)
 from src.models.motion_v2 import ORIGINAL_CHECKPOINT, CausalTCN, GRUBaseline, MotionModelV2, MultiRateNet, MultiScaleGRU
 from src.preprocess import fit_alignment
 from src.synthetic import make_drive, to_frame
@@ -103,14 +104,16 @@ def test_feature_stream_equals_offline_chunk(cfg):
     off = session_features_causal(g, cfg)
     t = g["t"].to_numpy()
     c = t[0] + 600.0                                                 # third chunk
-    al = fit_alignment(g[(t >= c - 300) & (t < c)], cfg)
-    fs = FeatureStream(al, cfg, 10.0)
+    calib = g[(t >= c - 300) & (t < c)]
+    al = fit_alignment(calib, cfg)
+    fs = FeatureStream(al, cfg, 10.0, energy_offsets(calib))      # same calibration offsets as offline
     run = np.nonzero((t >= c - 60) & (t < c + 300))[0]
     stream = np.array([fs.step(g[["ax", "ay", "az"]].to_numpy()[i], g[["gx", "gy", "gz"]].to_numpy()[i]) for i in run])
     keep = t[run] >= c + 10                                          # energy EMAs started 60 s earlier: settled
     ref = off["X"][run][keep]
     assert np.allclose(stream[keep][:, :5], ref[:, :5], atol=1e-5)
-    assert np.allclose(stream[keep][:, 5:], ref[:, 5:], atol=1e-4)
+    assert np.allclose(stream[keep][:, 5:], ref[:, 5:], atol=1e-4)    # raw + device-normalised energy
+    assert stream.shape[1] == len(V2_CHANNELS)
 
 
 # --------------------------------------------------------------------------- protocol and safety
@@ -119,12 +122,14 @@ def test_normalisation_comes_from_training_windows_only(cfg):
     exp = dict(EXPERIMENTS["B1"], name="t")
     tr, va = _ws(seed=1), _ws(seed=2, offset=50.0)                   # validation lives far away
     m, _ = train(cfg, exp, tr, va, epochs=1, per_epoch=512, batch=256, log=lambda *_: None)
-    assert np.allclose(m.mean, tr.X[tr.ends].mean(0), atol=1e-5)
+    cols = [V2_CHANNELS.index(c) for c in exp["features"]]
+    assert np.allclose(m.mean, tr.X[tr.ends][:, cols].mean(0), atol=1e-5)
     assert np.all(np.abs(m.mean) < 1.0)                              # untouched by the +50 validation offset
 
 
 def test_original_checkpoint_cannot_be_overwritten(tmp_path):
-    m = MotionModelV2(MultiScaleGRU(7), "msgru", {}, V2_CHANNELS, 600, np.zeros(7), np.ones(7))
+    C = len(V2_CHANNELS)
+    m = MotionModelV2(MultiScaleGRU(C), "msgru", {}, V2_CHANNELS, 600, np.zeros(C), np.ones(C))
     with pytest.raises(PermissionError):
         m.save(ORIGINAL_CHECKPOINT)
     m.save(str(tmp_path / "x.pt"))
@@ -163,8 +168,9 @@ def test_calibrated_gaussian_has_nominal_coverage_and_conformal_q():
 def test_onnx_export_parity(tmp_path):
     pytest.importorskip("onnxruntime")
     torch.manual_seed(0)
-    m = MotionModelV2(MultiScaleGRU(7), "msgru", {}, V2_CHANNELS, 600, np.zeros(7, np.float32),
-                      np.ones(7, np.float32), {"sigma_scale": 1.5})
+    C = len(V2_CHANNELS)
+    m = MotionModelV2(MultiScaleGRU(C), "msgru", {}, V2_CHANNELS, 600, np.zeros(C, np.float32),
+                      np.ones(C, np.float32), {"sigma_scale": 1.5})
     p = str(tmp_path / "m.pt")
     m.save(p)
     from scripts.export_onnx_v2 import main
