@@ -1,0 +1,11 @@
+B5 on fold route_Vw: 301404 train / 173043 val windows
+[B5] epoch 1 loss 5.466 val RMSE 5.569 (21s)
+[B5] epoch 2 loss 2.277 val RMSE 5.220 (21s)
+[B5] epoch 3 loss 1.663 val RMSE 4.795 (23s)
+[B5] epoch 4 loss 1.460 val RMSE 4.730 (22s)
+[B5] epoch 5 loss 1.405 val RMSE 4.690 (21s)
+[B5] epoch 6 loss 1.353 val RMSE 4.679 (22s)
+[B5] epoch 7 loss 1.332 val RMSE 4.680 (23s)
+[B5] epoch 8 loss 1.310 val RMSE 4.684 (23s)
+[B5] epoch 9 loss 1.293 val RMSE 4.698 (22s)
+saved /tmp/claude-0/-home-user-final/ad96db08-fb84-5347-ab3c-569ecffef14c/scratchpad/ml/models/B5_route_Vw_s7.pt {"best_epoch": 6, "sigma_scale": 1.9357067346572876, "params": 7001}

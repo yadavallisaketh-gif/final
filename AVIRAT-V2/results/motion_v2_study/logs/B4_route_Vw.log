@@ -1,0 +1,12 @@
+B4 on fold route_Vw: 301404 train / 173043 val windows
+[B4] epoch 1 loss 5.352 val RMSE 5.509 (20s)
+[B4] epoch 2 loss 2.225 val RMSE 5.364 (19s)
+[B4] epoch 3 loss 1.631 val RMSE 4.885 (19s)
+[B4] epoch 4 loss 1.421 val RMSE 4.745 (19s)
+[B4] epoch 5 loss 1.345 val RMSE 4.763 (21s)
+[B4] epoch 6 loss 1.291 val RMSE 4.758 (19s)
+[B4] epoch 7 loss 1.276 val RMSE 4.731 (20s)
+[B4] epoch 8 loss 1.243 val RMSE 4.753 (21s)
+[B4] epoch 9 loss 1.227 val RMSE 4.736 (21s)
+[B4] epoch 10 loss 1.218 val RMSE 4.732 (19s)
+saved /tmp/claude-0/-home-user-final/ad96db08-fb84-5347-ab3c-569ecffef14c/scratchpad/ml/models/B4_route_Vw_s7.pt {"best_epoch": 7, "sigma_scale": 2.074331283569336, "params": 7001}

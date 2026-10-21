@@ -1,0 +1,10 @@
+B5 on fold device_A: 298812 train / 175635 val windows
+[B5] epoch 1 loss 7.073 val RMSE 5.164 (26s)
+[B5] epoch 2 loss 2.887 val RMSE 4.221 (22s)
+[B5] epoch 3 loss 1.954 val RMSE 4.090 (22s)
+[B5] epoch 4 loss 1.743 val RMSE 4.107 (22s)
+[B5] epoch 5 loss 1.681 val RMSE 4.057 (22s)
+[B5] epoch 6 loss 1.641 val RMSE 4.289 (21s)
+[B5] epoch 7 loss 1.606 val RMSE 4.520 (22s)
+[B5] epoch 8 loss 1.585 val RMSE 4.564 (21s)
+saved /tmp/claude-0/-home-user-final/ad96db08-fb84-5347-ab3c-569ecffef14c/scratchpad/ml/models/B5_device_A_s7.pt {"best_epoch": 5, "sigma_scale": 1.2801172733306885, "params": 7001}

@@ -1,0 +1,12 @@
+A1 on fold route_Vw: 301404 train / 173043 val windows
+[A1] epoch 1 loss 5.928 val RMSE 5.843 (13s)
+[A1] epoch 2 loss 3.135 val RMSE 6.140 (13s)
+[A1] epoch 3 loss 1.952 val RMSE 6.125 (13s)
+[A1] epoch 4 loss 1.682 val RMSE 5.916 (12s)
+[A1] epoch 5 loss 1.616 val RMSE 5.819 (12s)
+[A1] epoch 6 loss 1.566 val RMSE 5.867 (12s)
+[A1] epoch 7 loss 1.529 val RMSE 5.783 (13s)
+[A1] epoch 8 loss 1.500 val RMSE 5.780 (12s)
+[A1] epoch 9 loss 1.480 val RMSE 5.852 (12s)
+[A1] epoch 10 loss 1.468 val RMSE 5.840 (13s)
+saved /tmp/claude-0/-home-user-final/ad96db08-fb84-5347-ab3c-569ecffef14c/scratchpad/ml/models/A1_route_Vw_s7.pt {"best_epoch": 8, "sigma_scale": 1.626279354095459, "params": 17922}

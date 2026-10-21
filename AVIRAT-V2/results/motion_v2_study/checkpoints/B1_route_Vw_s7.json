@@ -1,0 +1,103 @@
+{
+  "arch": "msgru",
+  "arch_kw": {
+    "hidden": 32,
+    "long_hidden": 16,
+    "short": 50,
+    "pool": 10,
+    "acc": true,
+    "ctx": true
+  },
+  "features": [
+    "a_f",
+    "a_l",
+    "a_u",
+    "w_u",
+    "w_h",
+    "e_acc",
+    "e_gyr"
+  ],
+  "window": 600,
+  "loss": "nll",
+  "balance": false,
+  "aug": {
+    "rot_deg": 0.0,
+    "tilt_deg": 0.0,
+    "gain": 0.0,
+    "e_shift": 0.0
+  },
+  "note": "compact multi-scale GRU (5 s @ 10 Hz + 60 s @ 1 Hz), multi-head",
+  "name": "B1",
+  "fold": "route_Vw",
+  "seed": 7,
+  "history": [
+    {
+      "epoch": 1,
+      "loss": 5.359431628265381,
+      "val_rmse": 5.460076808929443,
+      "seconds": 20.0
+    },
+    {
+      "epoch": 2,
+      "loss": 2.2305159497070313,
+      "val_rmse": 5.108290672302246,
+      "seconds": 20.4
+    },
+    {
+      "epoch": 3,
+      "loss": 1.6580971863937377,
+      "val_rmse": 4.988290786743164,
+      "seconds": 18.7
+    },
+    {
+      "epoch": 4,
+      "loss": 1.4326726992797851,
+      "val_rmse": 5.017730712890625,
+      "seconds": 19.2
+    },
+    {
+      "epoch": 5,
+      "loss": 1.3611581704711915,
+      "val_rmse": 5.084345817565918,
+      "seconds": 18.9
+    },
+    {
+      "epoch": 6,
+      "loss": 1.3141081852722167,
+      "val_rmse": 5.147657871246338,
+      "seconds": 19.5
+    }
+  ],
+  "energy_offset_prior": [
+    -1.7173453569412231,
+    -5.792940616607666
+  ],
+  "best_epoch": 3,
+  "sigma_scale": 1.7176570892333984,
+  "acc_sigma_scale": 1.0118809938430786,
+  "params": 7001,
+  "train_drives": [
+    "S2",
+    "S3a",
+    "S3b",
+    "S4",
+    "Vfa02",
+    "Vta1a",
+    "Vw14c",
+    "Vta2",
+    "Vta28",
+    "Vta8",
+    "Vta30",
+    "Vta29",
+    "S3c",
+    "Vta16",
+    "Vfa01"
+  ],
+  "val_drives": [
+    "Vw4",
+    "Vw2",
+    "Vw11",
+    "Vw3"
+  ],
+  "normalisation": "fitted on training windows only"
+}

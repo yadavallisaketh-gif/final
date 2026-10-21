@@ -1,0 +1,5 @@
+A0         params  17922 RMSE 5.669 MAE 4.044 bias -1.21 NLL 3.00 cov90 0.98 rho1s 0.92 T_int 35.0s | recal RMSE 4.271 bias -0.09
+A1         params  17922 RMSE 5.780 MAE 4.303 bias -0.22 NLL 3.02 cov90 0.91 rho1s 0.91 T_int 33.5s | recal RMSE 4.559 bias -0.03
+B1         params   7001 RMSE 4.988 MAE 3.817 bias -0.36 NLL 2.89 cov90 0.89 rho1s 0.98 T_int 36.1s | recal RMSE 4.377 bias +0.25
+B4         params   7001 RMSE 4.731 MAE 3.602 bias +0.34 NLL 2.81 cov90 0.91 rho1s 0.97 T_int 32.1s | recal RMSE 4.098 bias +0.11
+B5         params   7001 RMSE 4.680 MAE 3.532 bias -0.29 NLL 2.77 cov90 0.90 rho1s 0.97 T_int 33.4s | recal RMSE 4.088 bias +0.08
