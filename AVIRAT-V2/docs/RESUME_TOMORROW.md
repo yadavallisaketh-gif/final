@@ -1,5 +1,15 @@
 # AVIRAT 2.0: resume tomorrow
 
+> **Superseded in part (2026-10-21).** §3 (tests), §5 (pending experiments) and §10 (next task) are done:
+> - 123/123 tests pass;
+> - Blocks B and E have run;
+> - results are in `MOTIONNET_V2_INTERIM_REPORT.md`.
+>
+> The next step is **awaiting approval**: either the confirmatory test-drive check (A0 vs B4, V2.1 fusion), or the
+> next development stage (filter consistency / heading observability). The environment and restart commands in §7
+> and §9 remain valid.
+
+
 **Paused:** 2026-10-15. No training, evaluation or background job is running.
 
 > **Location.** This file is `AVIRAT-V2/docs/RESUME_TOMORROW.md`. The repository-root `docs/` belongs to the

@@ -1,6 +1,17 @@
-# AVIRAT 2.0: session status (2026-10-15, paused)
+# AVIRAT 2.0: session status (updated 2026-10-21: Blocks B and E done, awaiting approval)
 
-Branch `claude/epic-mendel-h0lxmh`. Last pushed commit: `c34a6d0`. The documentation commit after it is local only.
+**2026-10-21 update.**
+- The 4 stale tests are fixed: 123/123 pass.
+- Block B is complete: seeds and device/route folds trained and evaluated.
+- Block E is complete: the navigation fusion comparison on validation.
+- Model selection is **frozen**: B4 is the best speed model but has no significant navigation gain, so **no default
+  changed**. See `MOTIONNET_V2_INTERIM_REPORT.md`.
+- Pending your approval: the test-drive evaluation, or the next development stage.
+
+---
+
+
+Branch `claude/epic-mendel-h0lxmh`. Last pushed commit: `39df6fc`; the Block B, Block E and report commits after it are local only.
 Details and resume commands: `RESUME_TOMORROW.md`.
 
 ## Implemented
